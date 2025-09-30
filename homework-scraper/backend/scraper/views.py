@@ -3,6 +3,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.pagination import PageNumberPagination
 from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 from .models import ScrapedHomework, UserScrapingPreferences
 from .scrapers import HomeworkScrapingService
 from tasks.services import GoogleTasksService
@@ -56,6 +58,7 @@ class HomeworkListView(APIView):
         
         return paginator.get_paginated_response(homework_data)
 
+@method_decorator(csrf_exempt, name='dispatch')
 class ScrapeHomeworkView(APIView):
     """Manually trigger homework scraping"""
     
@@ -156,3 +159,50 @@ class UserPreferencesView(APIView):
             'auto_sync_to_google_tasks': preferences.auto_sync_to_google_tasks,
             'scraping_frequency_hours': preferences.scraping_frequency_hours,
         })
+
+class SyncToGoogleTasksView(APIView):
+    """Manually sync homework to Google Tasks"""
+    
+    def post(self, request):
+        if not request.user.is_authenticated:
+            return Response({
+                'error': 'User not authenticated'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        try:
+            # Initialize Google Tasks service
+            tasks_service = GoogleTasksService(request.user)
+            
+            # Check if user has valid OAuth credentials
+            if not tasks_service.credentials:
+                return Response({
+                    'error': 'No Google OAuth credentials found. Please authenticate with Google first.',
+                    'action': 'Please go to Settings and connect your Google account.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Get unsynced homework
+            unsynced_homework = ScrapedHomework.objects.filter(
+                user=request.user,
+                synced_to_google_tasks=False
+            )
+            
+            if not unsynced_homework:
+                return Response({
+                    'message': 'No homework to sync. All homework is already synced.',
+                    'synced_count': 0
+                })
+            
+            # Sync to Google Tasks
+            sync_result = tasks_service.sync_homework_to_tasks(unsynced_homework)
+            
+            return Response({
+                'message': f'Successfully synced {sync_result["synced_count"]} homework items to Google Tasks',
+                'synced_count': sync_result['synced_count'],
+                'errors': sync_result['errors']
+            })
+            
+        except Exception as e:
+            return Response({
+                'error': f'Sync failed: {str(e)}',
+                'details': 'Please check your Google account connection and try again.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

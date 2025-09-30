@@ -16,10 +16,14 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from . import test_views
+from authentication.views import CSRFTokenView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/auth/', include('authentication.urls')),
     path('api/scraper/', include('scraper.urls')),
     path('api/tasks/', include('tasks.urls')),
+    path('api/test/', test_views.api_test, name='api-test'),
+    path('csrf-token/', CSRFTokenView.as_view(), name='csrf-token'),
 ]

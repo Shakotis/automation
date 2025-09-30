@@ -54,7 +54,7 @@ async function apiCall<T>(
   const response = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',
-      ...options.headers,
+      ...(options.headers as Record<string, string> || {}),
     },
     credentials: 'include', // Include cookies for session auth
     ...options,
@@ -62,7 +62,7 @@ async function apiCall<T>(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+    throw new Error(errorData.error || errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
   }
 
   return response.json();

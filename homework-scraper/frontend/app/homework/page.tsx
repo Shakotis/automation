@@ -131,14 +131,19 @@ export default function HomeworkPage() {
   const handleSync = async (homeworkIds?: number[]) => {
     setSyncing(true);
     try {
-      // const response = await fetch('/api/tasks/sync/', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ homework_ids: homeworkIds }),
-      // });
+      const response = await fetch('http://127.0.0.1:8000/api/scraper/homework/sync-google-tasks/', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+      });
       
-      // Mock sync
-      setTimeout(() => {
+      if (response.ok) {
+        const result = await response.json();
+        alert(`✅ ${result.message}`);
+        
+        // Update UI to show items as synced
         if (homeworkIds) {
           setHomework(prev => prev.map(hw => 
             homeworkIds.includes(hw.id) ? { ...hw, synced_to_google_tasks: true } : hw
@@ -146,10 +151,14 @@ export default function HomeworkPage() {
         } else {
           setHomework(prev => prev.map(hw => ({ ...hw, synced_to_google_tasks: true })));
         }
-        setSyncing(false);
-      }, 2000);
+      } else {
+        const error = await response.json();
+        alert(`❌ Sync failed: ${error.error || 'Please make sure you are logged in and have connected your Google account.'}`);
+      }
     } catch (error) {
       console.error('Error syncing homework:', error);
+      alert(`❌ Sync failed: ${error}`);
+    } finally {
       setSyncing(false);
     }
   };
@@ -279,8 +288,7 @@ export default function HomeworkPage() {
                         size="sm"
                         color="success"
                         variant="flat"
-                        onPress={(e) => {
-                          e.stopPropagation();
+                        onClick={() => {
                           handleSync([item.id]);
                         }}
                         isLoading={syncing}
@@ -295,7 +303,7 @@ export default function HomeworkPage() {
                       href={item.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      onPress={(e) => e.stopPropagation()}
+                      onClick={() => {}}
                     >
                       View Source
                     </Button>
