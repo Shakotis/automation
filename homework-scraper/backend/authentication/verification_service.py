@@ -277,37 +277,361 @@ class CredentialVerificationService:
             return False, f"Verification error: {str(e)}"
     
     def verify_manodienynas_credentials(self, username, password, url=None):
-        """Verify Manodienynas.lt credentials"""
-        # For demo purposes, return successful verification
-        # In production, this would use Selenium to actually verify credentials
+        """Verify Manodienynas.lt credentials by attempting actual login"""
+        driver = None
         try:
             if not username or not password:
                 return False, "Username and password are required"
             
-            # Simulate verification delay
-            time.sleep(1)
+            driver = self._setup_driver()
             
-            # For demo, accept any non-empty credentials
-            return True, "Demo credentials verified successfully"
+            # Use the provided URL or default to Manodienynas login page
+            login_url = url or "https://www.manodienynas.lt/1/lt/public/public/login"
+            driver.get(login_url)
+            
+            wait = WebDriverWait(driver, 15)
+            
+            # Wait for login form to appear
+            try:
+                # Look for username field (Manodienynas typically uses username, not email)
+                username_selectors = [
+                    "input[name='username']",
+                    "input[name='user']",
+                    "input[name='login']",
+                    "#username",
+                    "#user",
+                    "#login",
+                    ".username-input",
+                    ".user-input"
+                ]
+                
+                username_field = None
+                for selector in username_selectors:
+                    try:
+                        username_field = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
+                        break
+                    except TimeoutException:
+                        continue
+                
+                if not username_field:
+                    return False, "Username field not found on login page"
+                
+                # Look for password field
+                password_selectors = [
+                    "input[type='password']",
+                    "input[name='password']",
+                    "#password",
+                    ".password-input"
+                ]
+                
+                password_field = None
+                for selector in password_selectors:
+                    try:
+                        password_field = driver.find_element(By.CSS_SELECTOR, selector)
+                        break
+                    except NoSuchElementException:
+                        continue
+                
+                if not password_field:
+                    return False, "Password field not found on login page"
+                
+                # Clear and enter credentials
+                username_field.clear()
+                username_field.send_keys(username)
+                time.sleep(0.5)  # Small delay between inputs
+                
+                password_field.clear()
+                password_field.send_keys(password)
+                time.sleep(0.5)
+                
+                # Look for submit button
+                submit_selectors = [
+                    "button[type='submit']",
+                    "input[type='submit']",
+                    "button.login-button",
+                    "button.submit-button",
+                    ".login-form button",
+                    "form button",
+                    "[value='Prisijungti']",  # Lithuanian for "Login"
+                    "[value='LOGIN']"
+                ]
+                
+                submit_button = None
+                for selector in submit_selectors:
+                    try:
+                        submit_button = driver.find_element(By.CSS_SELECTOR, selector)
+                        break
+                    except NoSuchElementException:
+                        continue
+                
+                if not submit_button:
+                    return False, "Submit button not found"
+                
+                # Click submit and wait for response
+                submit_button.click()
+                
+                # Wait for page to load and check result
+                time.sleep(3)
+                
+                current_url = driver.current_url.lower()
+                page_source = driver.page_source.lower()
+                
+                # Check for successful login indicators
+                success_indicators = [
+                    "dashboard",
+                    "dienynas",     # Lithuanian for "diary"
+                    "pagrindinis",  # Lithuanian for "main"
+                    "home",
+                    "student",
+                    "pupil",
+                    "mokinys",      # Lithuanian for "student"
+                    "logout",
+                    "atsijungti",   # Lithuanian for "logout"
+                    "prisijungta",  # Lithuanian for "logged in"
+                    "sveiki",       # Lithuanian for "welcome"
+                ]
+                
+                # Check for error indicators
+                error_indicators = [
+                    "invalid",
+                    "incorrect",
+                    "error",
+                    "failed",
+                    "denied",
+                    "neteisingas",  # Lithuanian for "incorrect"
+                    "klaida",       # Lithuanian for "error"
+                    "nepavyko",     # Lithuanian for "failed"
+                    "neteisingai",  # Lithuanian for "incorrectly"
+                    "login",        # If still on login page
+                    "prisijungimas" # Lithuanian for "login"
+                ]
+                
+                # Check URL for success patterns
+                url_success_patterns = [
+                    "dashboard",
+                    "home",
+                    "main",
+                    "dienynas",
+                    "student",
+                    "pupil"
+                ]
+                
+                has_url_success = any(pattern in current_url for pattern in url_success_patterns)
+                has_content_success = any(indicator in page_source for indicator in success_indicators)
+                has_error = any(error in page_source for error in error_indicators)
+                
+                # If URL changed away from login and has success indicators
+                if has_url_success or (not "login" in current_url and has_content_success):
+                    return True, "Login successful - credentials verified"
+                elif has_error or "login" in current_url:
+                    return False, "Invalid credentials - login failed"
+                else:
+                    # Additional check: look for specific elements that indicate successful login
+                    try:
+                        # Look for elements that typically appear after login
+                        post_login_elements = [
+                            "[data-testid='user-menu']",
+                            ".user-menu",
+                            ".logout",
+                            ".atsijungti",
+                            ".profile",
+                            "nav",
+                            ".navigation",
+                            ".menu",
+                            ".header-user"
+                        ]
+                        
+                        for element_selector in post_login_elements:
+                            try:
+                                driver.find_element(By.CSS_SELECTOR, element_selector)
+                                return True, "Login successful - user interface detected"
+                            except NoSuchElementException:
+                                continue
+                        
+                        return False, "Unable to determine login status - please check credentials"
+                        
+                    except Exception:
+                        return False, "Unable to verify login status"
+                
+            except TimeoutException:
+                return False, "Login form not found or page took too long to load"
                 
         except Exception as e:
             logger.error(f"Error verifying Manodienynas credentials: {str(e)}")
             return False, f"Verification failed: {str(e)}"
+        finally:
+            if driver:
+                driver.quit()
     
     def verify_eduka_credentials(self, username, password, url=None):
-        """Verify Eduka.lt credentials"""
-        # For demo purposes, return successful verification
-        # In production, this would use Selenium to actually verify credentials
+        """Verify Eduka.lt credentials by attempting actual login"""
+        driver = None
         try:
             if not username or not password:
                 return False, "Username and password are required"
             
-            # Simulate verification delay
-            time.sleep(1)
+            driver = self._setup_driver()
             
-            # For demo, accept any non-empty credentials
-            return True, "Demo credentials verified successfully"
+            # Use the provided URL or default to Eduka auth page
+            auth_url = url or "https://eduka.lt/auth"
+            driver.get(auth_url)
+            
+            wait = WebDriverWait(driver, 15)
+            
+            # Wait for login form to appear
+            try:
+                # Look for email/username field (Eduka might use email)
+                username_selectors = [
+                    "input[type='email']",
+                    "input[name='email']", 
+                    "input[name='username']",
+                    "#email",
+                    "#username",
+                    ".email-input",
+                    ".username-input"
+                ]
+                
+                username_field = None
+                for selector in username_selectors:
+                    try:
+                        username_field = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
+                        break
+                    except TimeoutException:
+                        continue
+                
+                if not username_field:
+                    return False, "Username/email field not found on login page"
+                
+                # Look for password field
+                password_selectors = [
+                    "input[type='password']",
+                    "input[name='password']",
+                    "#password",
+                    ".password-input"
+                ]
+                
+                password_field = None
+                for selector in password_selectors:
+                    try:
+                        password_field = driver.find_element(By.CSS_SELECTOR, selector)
+                        break
+                    except NoSuchElementException:
+                        continue
+                
+                if not password_field:
+                    return False, "Password field not found on login page"
+                
+                # Clear and enter credentials
+                username_field.clear()
+                username_field.send_keys(username)
+                time.sleep(0.5)  # Small delay between inputs
+                
+                password_field.clear()
+                password_field.send_keys(password)
+                time.sleep(0.5)
+                
+                # Look for submit button
+                submit_selectors = [
+                    "button[type='submit']",
+                    "input[type='submit']",
+                    "button.login-button",
+                    "button.submit-button",
+                    ".login-form button",
+                    "form button"
+                ]
+                
+                submit_button = None
+                for selector in submit_selectors:
+                    try:
+                        submit_button = driver.find_element(By.CSS_SELECTOR, selector)
+                        break
+                    except NoSuchElementException:
+                        continue
+                
+                if not submit_button:
+                    return False, "Submit button not found"
+                
+                # Click submit and wait for response
+                submit_button.click()
+                
+                # Wait for page to load and check result
+                time.sleep(3)
+                
+                current_url = driver.current_url.lower()
+                page_source = driver.page_source.lower()
+                
+                # Check for successful login indicators
+                success_indicators = [
+                    "dashboard",
+                    "student",
+                    "my-groups",
+                    "profile",
+                    "logout",
+                    "prisijungta",  # Lithuanian for "logged in"
+                    "pagrindinis",  # Lithuanian for "main"
+                ]
+                
+                # Check for error indicators
+                error_indicators = [
+                    "invalid",
+                    "incorrect",
+                    "error",
+                    "failed",
+                    "denied",
+                    "neteisingas",  # Lithuanian for "incorrect"
+                    "klaida",       # Lithuanian for "error"
+                    "nepavyko",     # Lithuanian for "failed"
+                ]
+                
+                # Check URL for success patterns
+                url_success_patterns = [
+                    "dashboard",
+                    "student",
+                    "home",
+                    "main",
+                    "groups"
+                ]
+                
+                has_url_success = any(pattern in current_url for pattern in url_success_patterns)
+                has_content_success = any(indicator in page_source for indicator in success_indicators)
+                has_error = any(error in page_source for error in error_indicators)
+                
+                # If URL changed away from auth and has success indicators
+                if has_url_success or (not "auth" in current_url and has_content_success):
+                    return True, "Login successful - credentials verified"
+                elif has_error or "auth" in current_url:
+                    return False, "Invalid credentials - login failed"
+                else:
+                    # Additional check: look for specific elements that indicate successful login
+                    try:
+                        # Look for elements that typically appear after login
+                        post_login_elements = [
+                            "[data-testid='user-menu']",
+                            ".user-menu",
+                            ".logout",
+                            ".profile",
+                            "nav",
+                            ".navigation"
+                        ]
+                        
+                        for element_selector in post_login_elements:
+                            try:
+                                driver.find_element(By.CSS_SELECTOR, element_selector)
+                                return True, "Login successful - user interface detected"
+                            except NoSuchElementException:
+                                continue
+                        
+                        return False, "Unable to determine login status - please check credentials"
+                        
+                    except Exception:
+                        return False, "Unable to verify login status"
+                
+            except TimeoutException:
+                return False, "Login form not found or page took too long to load"
                 
         except Exception as e:
             logger.error(f"Error verifying Eduka credentials: {str(e)}")
             return False, f"Verification failed: {str(e)}"
+        finally:
+            if driver:
+                driver.quit()
