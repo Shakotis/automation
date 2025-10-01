@@ -8,6 +8,7 @@ import { Input } from "@heroui/input";
 import { Divider } from "@heroui/divider";
 import { Chip } from "@heroui/chip";
 import { Spinner } from "@heroui/spinner";
+import { Select, SelectItem } from "@heroui/select";
 import { title } from "@/components/primitives";
 
 interface UserPreferences {
@@ -16,6 +17,7 @@ interface UserPreferences {
   scraping_frequency_hours: number;
   last_scraped_manodienynas: string | null;
   last_scraped_eduka: string | null;
+  google_tasks_title_format: 'title' | 'subject';
 }
 
 interface UserProfile {
@@ -44,6 +46,7 @@ export default function SettingsPage() {
     scraping_frequency_hours: 6,
     last_scraped_manodienynas: null,
     last_scraped_eduka: null,
+    google_tasks_title_format: 'title',
   });
   
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -63,22 +66,46 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [verifying, setVerifying] = useState<string | null>(null);
   const [savingCredential, setSavingCredential] = useState<string | null>(null);
+  const [showCredentialsPrompt, setShowCredentialsPrompt] = useState(false);
 
   useEffect(() => {
     fetchUserData();
     fetchCredentials();
+    
+    // Check if redirected from OAuth with setup=credentials parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('setup') === 'credentials') {
+      setShowCredentialsPrompt(true);
+    }
   }, []);
 
   const fetchUserData = async () => {
     try {
       // Try to fetch real user profile from the API
-      const response = await fetch('http://localhost:8000/api/auth/user/', {
+      const response = await fetch('/api/auth/user/', {
         credentials: 'include',
       });
       
       if (response.ok) {
         const data = await response.json();
         setUserProfile(data.user);
+        
+        // Fetch preferences
+        const prefResponse = await fetch('/api/scraper/preferences/', {
+          credentials: 'include',
+        });
+        
+        if (prefResponse.ok) {
+          const prefData = await prefResponse.json();
+          setPreferences({
+            enable_manodienynas: prefData.enable_manodienynas,
+            enable_eduka: prefData.enable_eduka,
+            scraping_frequency_hours: prefData.scraping_frequency_hours,
+            last_scraped_manodienynas: prefData.last_scraped_manodienynas,
+            last_scraped_eduka: prefData.last_scraped_eduka,
+            google_tasks_title_format: prefData.google_tasks_title_format || 'title',
+          });
+        }
       } else if (response.status === 401) {
         // User is not authenticated
         setUserProfile(null);
@@ -93,14 +120,6 @@ export default function SettingsPage() {
           has_google_oauth: false,
         });
       }
-      
-      setPreferences({
-        enable_manodienynas: true,
-        enable_eduka: true,
-        scraping_frequency_hours: 6,
-        last_scraped_manodienynas: new Date().toISOString(),
-        last_scraped_eduka: new Date().toISOString(),
-      });
     } catch (error) {
       console.error('Error fetching user data:', error);
       // Network error, show fallback
@@ -118,7 +137,7 @@ export default function SettingsPage() {
 
   const fetchCredentials = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/auth/credentials/', {
+      const response = await fetch('/api/auth/credentials/', {
         credentials: 'include',
       });
       
@@ -134,7 +153,7 @@ export default function SettingsPage() {
   const handleSaveCredential = async (site: string, username: string, password: string) => {
     setSavingCredential(site);
     try {
-      const response = await fetch('http://localhost:8000/api/auth/credentials/', {
+      const response = await fetch('/api/auth/credentials/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -186,7 +205,7 @@ export default function SettingsPage() {
   const handleVerifyCredential = async (site: string) => {
     setVerifying(site);
     try {
-      const response = await fetch('http://localhost:8000/api/auth/verify-credentials/', {
+      const response = await fetch('/api/auth/verify-credentials/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -229,18 +248,27 @@ export default function SettingsPage() {
   const handleSavePreferences = async () => {
     setSaving(true);
     try {
-      // const response = await fetch('/api/scraper/preferences/', {
-      //   method: 'PUT',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(preferences),
-      // });
+      const response = await fetch('/api/scraper/preferences/', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          enable_manodienynas: preferences.enable_manodienynas,
+          enable_eduka: preferences.enable_eduka,
+          scraping_frequency_hours: preferences.scraping_frequency_hours,
+          google_tasks_title_format: preferences.google_tasks_title_format,
+        }),
+      });
       
-      // Mock save
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      console.log('Preferences saved:', preferences);
+      if (response.ok) {
+        alert('✅ Preferences saved successfully!');
+      } else {
+        const errorData = await response.json();
+        alert(`❌ Failed to save preferences: ${errorData.error || 'Unknown error'}`);
+      }
     } catch (error) {
       console.error('Error saving preferences:', error);
+      alert('❌ Network error: Could not save preferences');
     } finally {
       setSaving(false);
     }
@@ -421,6 +449,33 @@ export default function SettingsPage() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       <h1 className={title({ class: "mb-8" })}>Settings</h1>
+
+      {/* Credentials Setup Prompt */}
+      {showCredentialsPrompt && userProfile && (
+        <Card className="mb-6 border-primary-200 bg-primary-50">
+          <CardBody>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="text-primary-600 text-2xl">🔐</div>
+                <div>
+                  <h3 className="font-semibold text-primary-800">Setup Your Site Credentials</h3>
+                  <p className="text-primary-700 text-sm">
+                    To start scraping homework, please add your Manodienynas or Eduka credentials below.
+                  </p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                color="default"
+                variant="light"
+                onClick={() => setShowCredentialsPrompt(false)}
+              >
+                ✕
+              </Button>
+            </div>
+          </CardBody>
+        </Card>
+      )}
 
       {/* Authentication Warning */}
       {!userProfile && (
@@ -624,6 +679,38 @@ export default function SettingsPage() {
                 </Button>
               )}
             </div>
+
+            <Divider />
+
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Google Tasks Title Format
+              </label>
+              <Select
+                selectedKeys={[preferences.google_tasks_title_format]}
+                onSelectionChange={(keys) => {
+                  const value = Array.from(keys)[0] as 'title' | 'subject';
+                  setPreferences(prev => ({ ...prev, google_tasks_title_format: value }));
+                }}
+                variant="bordered"
+                className="max-w-xs"
+                description="Choose what to display as the task title in Google Tasks"
+              >
+                <SelectItem key="title">
+                  Task Title (e.g., "Complete math worksheet")
+                </SelectItem>
+                <SelectItem key="subject">
+                  Subject Name (e.g., "Mathematics")
+                </SelectItem>
+              </Select>
+              <p className="text-xs text-default-500 mt-2">
+                {preferences.google_tasks_title_format === 'title' 
+                  ? "The task title will be shown in Google Tasks, with subject in notes"
+                  : "The subject will be shown in Google Tasks, with task title in notes"}
+              </p>
+            </div>
+
+            <Divider />
 
             <div className="text-sm text-default-500">
               <p>

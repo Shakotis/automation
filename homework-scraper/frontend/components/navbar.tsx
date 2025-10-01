@@ -66,6 +66,16 @@ export const Navbar = () => {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    try {
+      const data = await authAPI.getGoogleAuthUrl();
+      window.location.href = data.authorization_url;
+    } catch (error) {
+      console.error('Google sign-in error:', error);
+      alert('Failed to initiate Google sign-in. Please ensure the backend is running.');
+    }
+  };
+
   const getAvatarText = () => {
     if (!user) return '';
     const firstInitial = user.first_name ? user.first_name[0] : '';
@@ -164,11 +174,10 @@ export const Navbar = () => {
         ) : (
           <NavbarItem className="hidden md:flex">
             <Button
-              as={NextLink}
               className="text-sm font-normal text-white bg-primary"
-              href="/auth/google"
               startContent={<GoogleIcon size={16} />}
               variant="solid"
+              onPress={handleGoogleSignIn}
             >
               Sign In
             </Button>
@@ -243,9 +252,12 @@ export const Navbar = () => {
             </>
           ) : (
             <NavbarMenuItem>
-              <NextLink className="w-full text-foreground" href="/auth/google">
+              <button 
+                className="w-full text-left text-primary font-semibold"
+                onClick={handleGoogleSignIn}
+              >
                 Sign In with Google
-              </NextLink>
+              </button>
             </NavbarMenuItem>
           )}
         </div>

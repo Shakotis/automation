@@ -107,10 +107,26 @@ class GoogleTasksService:
         
         task_list_id = self.get_or_create_homework_tasklist()
         
+        # Get user's preference for task title format
+        from scraper.models import UserScrapingPreferences
+        try:
+            preferences = UserScrapingPreferences.objects.get(user=self.user)
+            title_format = preferences.google_tasks_title_format
+        except UserScrapingPreferences.DoesNotExist:
+            title_format = 'title'  # Default to task title
+        
+        # Set task title based on user preference
+        if title_format == 'subject' and homework.subject:
+            task_title = homework.subject
+            task_notes = f"Task: {homework.title}\n\nDescription: {homework.description}\n\nSource: {homework.get_site_display()}\nURL: {homework.url}"
+        else:
+            task_title = homework.title
+            task_notes = f"Subject: {homework.subject}\n\nDescription: {homework.description}\n\nSource: {homework.get_site_display()}\nURL: {homework.url}"
+        
         # Prepare task data
         task_body = {
-            'title': homework.title,
-            'notes': f"Subject: {homework.subject}\n\nDescription: {homework.description}\n\nSource: {homework.get_site_display()}\nURL: {homework.url}",
+            'title': task_title,
+            'notes': task_notes,
         }
         
         # Add due date if available

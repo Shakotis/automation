@@ -6,6 +6,7 @@ import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
 import { Chip } from "@heroui/chip";
 import { Spinner } from "@heroui/spinner";
+import { Progress } from "@heroui/progress";
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/modal";
 import { CheckIcon, EyeFilledIcon, EyeSlashFilledIcon, WarningIcon } from "@/components/icons";
 
@@ -38,6 +39,8 @@ export default function CredentialInput({ selectedSites, onComplete, onBack }: C
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isVerifying, setIsVerifying] = useState<{[key: string]: boolean}>({});
+  const [verificationProgress, setVerificationProgress] = useState<{[key: string]: number}>({});
+  const [verificationMessage, setVerificationMessage] = useState<{[key: string]: string}>({});
   const [showPasswords, setShowPasswords] = useState<{[key: string]: boolean}>({});
   const [error, setError] = useState<string | null>(null);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
@@ -106,7 +109,28 @@ export default function CredentialInput({ selectedSites, onComplete, onBack }: C
     }
 
     setIsVerifying(prev => ({ ...prev, [siteId]: true }));
+    setVerificationProgress(prev => ({ ...prev, [siteId]: 0 }));
+    setVerificationMessage(prev => ({ ...prev, [siteId]: 'Starting verification...' }));
     setError(null);
+
+    // Simulate progress updates
+    const progressUpdates = [
+      { progress: 20, message: 'Opening browser...' },
+      { progress: 40, message: 'Navigating to login page...' },
+      { progress: 60, message: 'Entering credentials...' },
+      { progress: 80, message: 'Logging in...' },
+      { progress: 100, message: 'Verifying login...' }
+    ];
+
+    let updateIndex = 0;
+    const progressInterval = setInterval(() => {
+      if (updateIndex < progressUpdates.length) {
+        const update = progressUpdates[updateIndex];
+        setVerificationProgress(prev => ({ ...prev, [siteId]: update.progress }));
+        setVerificationMessage(prev => ({ ...prev, [siteId]: update.message }));
+        updateIndex++;
+      }
+    }, 800); // Update every 800ms
 
     try {
       const response = await fetch('/api/auth/verify-credentials/', {
@@ -123,6 +147,10 @@ export default function CredentialInput({ selectedSites, onComplete, onBack }: C
 
       const data = await response.json();
       
+      clearInterval(progressInterval);
+      setVerificationProgress(prev => ({ ...prev, [siteId]: 100 }));
+      setVerificationMessage(prev => ({ ...prev, [siteId]: data.success ? 'Verification successful!' : 'Verification failed!' }));
+      
       setVerificationStatus(prev => ({
         ...prev,
         [siteId]: data.success
@@ -137,13 +165,20 @@ export default function CredentialInput({ selectedSites, onComplete, onBack }: C
       }));
 
     } catch (error) {
+      clearInterval(progressInterval);
+      setVerificationProgress(prev => ({ ...prev, [siteId]: 100 }));
+      setVerificationMessage(prev => ({ ...prev, [siteId]: 'Network error occurred!' }));
       setVerificationStatus(prev => ({
         ...prev,
         [siteId]: false
       }));
       setError('Network error during verification');
     } finally {
-      setIsVerifying(prev => ({ ...prev, [siteId]: false }));
+      setTimeout(() => {
+        setIsVerifying(prev => ({ ...prev, [siteId]: false }));
+        setVerificationProgress(prev => ({ ...prev, [siteId]: 0 }));
+        setVerificationMessage(prev => ({ ...prev, [siteId]: '' }));
+      }, 2000); // Keep progress visible for 2 seconds
     }
   };
 
@@ -340,6 +375,21 @@ export default function CredentialInput({ selectedSites, onComplete, onBack }: C
               >
                 {isVerifying[site.id] ? 'Verifying...' : 'Test Connection'}
               </Button>
+              
+              {isVerifying[site.id] && (
+                <div className="mt-4 space-y-2">
+                  <Progress
+                    value={verificationProgress[site.id] || 0}
+                    color="primary"
+                    className="w-full"
+                    label="Verification Progress"
+                    showValueLabel={true}
+                  />
+                  <p className="text-sm text-default-600">
+                    {verificationMessage[site.id] || 'Starting verification...'}
+                  </p>
+                </div>
+              )}
             </CardBody>
           </Card>
         ))}

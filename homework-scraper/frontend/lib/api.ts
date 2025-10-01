@@ -1,5 +1,6 @@
 // API configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+// Use relative path to leverage Next.js API proxy
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 // Types
 export interface HomeworkItem {
@@ -84,6 +85,52 @@ export const authAPI = {
 
   async getUserProfile(): Promise<{ user: UserProfile }> {
     return apiCall('/auth/user/');
+  },
+
+  // Credential management
+  async storeCredentials(data: {
+    site: string;
+    username: string;
+    password: string;
+    additional_data?: any;
+  }): Promise<{ message: string; site: string; username: string; is_verified: boolean }> {
+    return apiCall('/auth/credentials/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async getCredentials(): Promise<{ credentials: Record<string, any> }> {
+    return apiCall('/auth/credentials/');
+  },
+
+  async verifyCredentials(data: {
+    site: string;
+    url?: string;
+  }): Promise<{ success: boolean; message: string; site: string; verified: boolean }> {
+    return apiCall('/auth/verify-credentials/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async deleteCredentials(site: string): Promise<{ message: string; site: string }> {
+    return apiCall('/auth/credentials/', {
+      method: 'DELETE',
+      body: JSON.stringify({ site }),
+    });
+  },
+
+  // Site selection
+  async getAvailableSites(): Promise<{ available_sites: Array<{ id: string; name: string; description: string }> }> {
+    return apiCall('/auth/sites/');
+  },
+
+  async saveSiteSelections(selectedSites: string[]): Promise<{ message: string; selected_sites: string[] }> {
+    return apiCall('/auth/sites/', {
+      method: 'POST',
+      body: JSON.stringify({ selected_sites: selectedSites }),
+    });
   },
 };
 

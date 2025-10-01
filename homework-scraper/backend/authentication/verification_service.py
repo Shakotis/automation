@@ -25,8 +25,14 @@ class CredentialVerificationService:
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--window-size=1920,1080")
+        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        chrome_options.add_experimental_option('useAutomationExtension', False)
+        chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         
-        return webdriver.Chrome(options=chrome_options)
+        driver = webdriver.Chrome(options=chrome_options)
+        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+        return driver
     
     def verify_blackboard_credentials(self, username, password, url=None):
         """Verify Blackboard credentials"""
@@ -308,7 +314,13 @@ class CredentialVerificationService:
                 username_field = None
                 for selector in username_selectors:
                     try:
+                        # Wait for element to be present and visible
+                        element = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, selector)))
+                        # Wait for element to be interactable
                         username_field = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
+                        # Scroll element into view
+                        driver.execute_script("arguments[0].scrollIntoView(true);", username_field)
+                        time.sleep(0.5)
                         break
                     except TimeoutException:
                         continue
@@ -327,22 +339,33 @@ class CredentialVerificationService:
                 password_field = None
                 for selector in password_selectors:
                     try:
-                        password_field = driver.find_element(By.CSS_SELECTOR, selector)
+                        # Wait for element to be present and interactable
+                        password_field = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
+                        # Scroll element into view
+                        driver.execute_script("arguments[0].scrollIntoView(true);", password_field)
+                        time.sleep(0.5)
                         break
-                    except NoSuchElementException:
+                    except (NoSuchElementException, TimeoutException):
                         continue
                 
                 if not password_field:
                     return False, "Password field not found on login page"
                 
-                # Clear and enter credentials
-                username_field.clear()
-                username_field.send_keys(username)
-                time.sleep(0.5)  # Small delay between inputs
-                
-                password_field.clear()
-                password_field.send_keys(password)
-                time.sleep(0.5)
+                # Clear and enter credentials with improved interaction
+                try:
+                    # Click to focus before clearing
+                    username_field.click()
+                    username_field.clear()
+                    username_field.send_keys(username)
+                    time.sleep(0.5)  # Small delay between inputs
+                    
+                    # Click to focus before clearing
+                    password_field.click()
+                    password_field.clear()
+                    password_field.send_keys(password)
+                    time.sleep(0.5)
+                except Exception as e:
+                    return False, f"Failed to enter credentials: {str(e)}"
                 
                 # Look for submit button
                 submit_selectors = [
@@ -359,16 +382,23 @@ class CredentialVerificationService:
                 submit_button = None
                 for selector in submit_selectors:
                     try:
-                        submit_button = driver.find_element(By.CSS_SELECTOR, selector)
+                        submit_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
+                        # Scroll submit button into view
+                        driver.execute_script("arguments[0].scrollIntoView(true);", submit_button)
+                        time.sleep(0.5)
                         break
-                    except NoSuchElementException:
+                    except (NoSuchElementException, TimeoutException):
                         continue
                 
                 if not submit_button:
                     return False, "Submit button not found"
                 
                 # Click submit and wait for response
-                submit_button.click()
+                try:
+                    submit_button.click()
+                except Exception as e:
+                    # Try JavaScript click if regular click fails
+                    driver.execute_script("arguments[0].click();", submit_button)
                 
                 # Wait for page to load and check result
                 time.sleep(3)
@@ -494,7 +524,13 @@ class CredentialVerificationService:
                 username_field = None
                 for selector in username_selectors:
                     try:
+                        # Wait for element to be present and visible
+                        element = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, selector)))
+                        # Wait for element to be interactable
                         username_field = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
+                        # Scroll element into view
+                        driver.execute_script("arguments[0].scrollIntoView(true);", username_field)
+                        time.sleep(0.5)
                         break
                     except TimeoutException:
                         continue
@@ -513,29 +549,43 @@ class CredentialVerificationService:
                 password_field = None
                 for selector in password_selectors:
                     try:
-                        password_field = driver.find_element(By.CSS_SELECTOR, selector)
+                        # Wait for element to be present and interactable
+                        password_field = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
+                        # Scroll element into view
+                        driver.execute_script("arguments[0].scrollIntoView(true);", password_field)
+                        time.sleep(0.5)
                         break
-                    except NoSuchElementException:
+                    except (NoSuchElementException, TimeoutException):
                         continue
                 
                 if not password_field:
                     return False, "Password field not found on login page"
                 
-                # Clear and enter credentials
-                username_field.clear()
-                username_field.send_keys(username)
-                time.sleep(0.5)  # Small delay between inputs
-                
-                password_field.clear()
-                password_field.send_keys(password)
-                time.sleep(0.5)
+                # Clear and enter credentials with improved interaction
+                try:
+                    # Click to focus before clearing
+                    username_field.click()
+                    username_field.clear()
+                    username_field.send_keys(username)
+                    time.sleep(0.5)  # Small delay between inputs
+                    
+                    # Click to focus before clearing
+                    password_field.click()
+                    password_field.clear()
+                    password_field.send_keys(password)
+                    time.sleep(0.5)
+                except Exception as e:
+                    return False, f"Failed to enter credentials: {str(e)}"
                 
                 # Look for submit button
                 submit_selectors = [
+                    "button.tst-login-submit-button",  # Eduka-specific selector
                     "button[type='submit']",
+                    "button[type='button']",  # Eduka uses type="button"
                     "input[type='submit']",
                     "button.login-button",
                     "button.submit-button",
+                    "button.btn--custom-primary",  # Eduka button class
                     ".login-form button",
                     "form button"
                 ]
@@ -543,16 +593,23 @@ class CredentialVerificationService:
                 submit_button = None
                 for selector in submit_selectors:
                     try:
-                        submit_button = driver.find_element(By.CSS_SELECTOR, selector)
+                        submit_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
+                        # Scroll submit button into view
+                        driver.execute_script("arguments[0].scrollIntoView(true);", submit_button)
+                        time.sleep(0.5)
                         break
-                    except NoSuchElementException:
+                    except (NoSuchElementException, TimeoutException):
                         continue
                 
                 if not submit_button:
                     return False, "Submit button not found"
                 
                 # Click submit and wait for response
-                submit_button.click()
+                try:
+                    submit_button.click()
+                except Exception as e:
+                    # Try JavaScript click if regular click fails
+                    driver.execute_script("arguments[0].click();", submit_button)
                 
                 # Wait for page to load and check result
                 time.sleep(3)

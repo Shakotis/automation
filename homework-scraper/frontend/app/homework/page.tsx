@@ -247,10 +247,13 @@ export default function HomeworkPage() {
       ) : (
         <div className="space-y-4">
           {homework.map((item) => (
-            <Card key={item.id} isPressable onPress={() => {setSelectedHomework(item); onOpen();}}>
+            <Card key={item.id}>
               <CardBody>
                 <div className="flex justify-between items-start">
-                  <div className="flex-1">
+                  <div 
+                    className="flex-1 cursor-pointer"
+                    onClick={() => {setSelectedHomework(item); onOpen();}}
+                  >
                     <div className="flex items-center gap-2 mb-2">
                       <h3 className="font-semibold text-lg">{item.title}</h3>
                       <Chip
@@ -288,7 +291,8 @@ export default function HomeworkPage() {
                         size="sm"
                         color="success"
                         variant="flat"
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           handleSync([item.id]);
                         }}
                         isLoading={syncing}
@@ -303,7 +307,7 @@ export default function HomeworkPage() {
                       href={item.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      onClick={() => {}}
+                      onClick={(e) => e.stopPropagation()}
                     >
                       View Source
                     </Button>

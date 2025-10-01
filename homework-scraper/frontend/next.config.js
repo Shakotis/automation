@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {};
+const nextConfig = {
+  // Removed rewrites - using API route handler instead (app/api/[...path]/route.ts)
+};
 
-module.exports = nextConfig;
+export default nextConfig;

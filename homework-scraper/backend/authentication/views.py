@@ -71,12 +71,13 @@ class GoogleOAuthCallbackView(APIView):
             except Exception as supabase_error:
                 logger.warning(f"Failed to sync user to Supabase: {str(supabase_error)}")
             
-            # Check if this is the user's first login
-            # Consider it first login ONLY if:
-            # 1. No credentials stored for any site, AND
-            # 2. No site selections in Supabase
-            # (Don't use OAuth record creation time as it can be misleading)
+            # Check if this is the user's first login or if they need to setup credentials
+            # Redirect logic:
+            # 1. If no credentials at all -> onboarding (first time)
+            # 2. If has credentials but not verified -> settings (to verify)
+            # 3. If all good -> dashboard
             is_first_login = False
+            needs_credential_setup = False
             
             try:
                 # Check if user has any stored credentials
@@ -84,25 +85,35 @@ class GoogleOAuthCallbackView(APIView):
                 has_credentials = UserCredential.objects.filter(user=user).exists()
                 print(f"DEBUG: User {user.email} has_credentials: {has_credentials}")
                 
-                # Check site selections in Supabase  
-                try:
-                    supabase_service = SupabaseService()
-                    selected_sites = supabase_service.get_user_site_selections(user.id)
-                    has_site_selections = len(selected_sites) > 0
-                    print(f"DEBUG: User {user.email} has_site_selections: {has_site_selections}, sites: {selected_sites}")
-                except Exception as supabase_e:
-                    has_site_selections = False
-                    print(f"DEBUG: Error checking site selections: {str(supabase_e)}")
+                if not has_credentials:
+                    # No credentials at all - first time user
+                    is_first_login = True
+                    needs_credential_setup = True
+                else:
+                    # Has credentials - check if any are verified
+                    verified_credentials = UserCredential.objects.filter(user=user, is_verified=True).exists()
+                    print(f"DEBUG: User {user.email} has verified_credentials: {verified_credentials}")
+                    
+                    if not verified_credentials:
+                        # Has credentials but none are verified - need to verify
+                        needs_credential_setup = True
                 
-                # It's first login ONLY if they have no credentials AND no site selections
-                is_first_login = not has_credentials and not has_site_selections
-                print(f"DEBUG: User {user.email} is_first_login: {is_first_login}")
+                print(f"DEBUG: User {user.email} is_first_login: {is_first_login}, needs_credential_setup: {needs_credential_setup}")
                 
             except Exception as e:
-                logger.warning(f"Error checking first login status: {str(e)}")
-                print(f"DEBUG: Error in first login check: {str(e)}")
-                # Default to NOT first login if we can't determine (safer for returning users)
+                logger.warning(f"Error checking login status: {str(e)}")
+                print(f"DEBUG: Error in login check: {str(e)}")
+                # Default to dashboard if we can't determine (safer for returning users)
                 is_first_login = False
+                needs_credential_setup = False
+            
+            # Determine redirect URL
+            if is_first_login:
+                redirect_url = '/onboarding'
+            elif needs_credential_setup:
+                redirect_url = '/settings?setup=credentials'
+            else:
+                redirect_url = '/dashboard'
             
             # Return JSON response instead of redirect for frontend to handle
             response_data = {
@@ -114,15 +125,13 @@ class GoogleOAuthCallbackView(APIView):
                     'last_name': user.last_name,
                 },
                 'is_first_login': is_first_login,
-                'redirect_url': '/onboarding' if is_first_login else '/dashboard'
+                'needs_credential_setup': needs_credential_setup,
+                'redirect_url': redirect_url
             }
             
             # For GET requests (direct backend callback), redirect to frontend with result
             if self.request.method == 'GET':
-                if is_first_login:
-                    return redirect('http://localhost:3000/onboarding')
-                else:
-                    return redirect('http://localhost:3000/dashboard')
+                return redirect(f'http://localhost:3000{redirect_url}')
             
             # For POST requests (frontend callback), return JSON
             return Response(response_data)

@@ -18,9 +18,11 @@ class ScrapedHomework(models.Model):
     scraped_at = models.DateTimeField(auto_now_add=True)
     synced_to_google_tasks = models.BooleanField(default=False)
     google_task_id = models.CharField(max_length=200, blank=True)
+    completed = models.BooleanField(default=False)
+    completed_at = models.DateTimeField(null=True, blank=True)
     
     class Meta:
-        ordering = ['-scraped_at']
+        ordering = ['due_date', '-scraped_at']
         unique_together = ['user', 'site', 'title', 'due_date']
     
     def __str__(self):
@@ -28,6 +30,11 @@ class ScrapedHomework(models.Model):
 
 class UserScrapingPreferences(models.Model):
     """User preferences for scraping"""
+    GOOGLE_TASKS_TITLE_CHOICES = [
+        ('title', 'Task Title'),
+        ('subject', 'Subject Name'),
+    ]
+    
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     enable_manodienynas = models.BooleanField(default=True)
     enable_eduka = models.BooleanField(default=True)
@@ -35,6 +42,12 @@ class UserScrapingPreferences(models.Model):
     scraping_frequency_hours = models.PositiveIntegerField(default=6)  # Every 6 hours
     last_scraped_manodienynas = models.DateTimeField(null=True, blank=True)
     last_scraped_eduka = models.DateTimeField(null=True, blank=True)
+    google_tasks_title_format = models.CharField(
+        max_length=20,
+        choices=GOOGLE_TASKS_TITLE_CHOICES,
+        default='title',
+        help_text='What to display in Google Tasks header: task title or subject name'
+    )
     
     def __str__(self):
         return f"Preferences for {self.user.username}"
