@@ -18,6 +18,8 @@ class ScrapedHomework(models.Model):
     scraped_at = models.DateTimeField(auto_now_add=True)
     synced_to_google_tasks = models.BooleanField(default=False)
     google_task_id = models.CharField(max_length=200, blank=True)
+    synced_to_google_calendar = models.BooleanField(default=False)
+    google_calendar_event_id = models.CharField(max_length=200, blank=True)
     completed = models.BooleanField(default=False)
     completed_at = models.DateTimeField(null=True, blank=True)
     

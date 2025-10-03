@@ -19,7 +19,8 @@ logger = logging.getLogger(__name__)
 
 class GoogleOAuthLoginView(APIView):
     """Initiate Google OAuth login"""
-    permission_classes = []
+    authentication_classes = []  # Disable authentication
+    permission_classes = []  # Allow unauthenticated access
     
     def get(self, request):
         try:
@@ -35,7 +36,8 @@ class GoogleOAuthLoginView(APIView):
 @method_decorator(csrf_exempt, name='dispatch')
 class GoogleOAuthCallbackView(APIView):
     """Handle Google OAuth callback"""
-    permission_classes = []
+    authentication_classes = []  # Disable authentication
+    permission_classes = []  # Allow unauthenticated access
     
     def get(self, request):
         code = request.GET.get('code')
@@ -153,6 +155,7 @@ class GoogleOAuthCallbackView(APIView):
 @method_decorator(csrf_exempt, name='dispatch')
 class LogoutView(APIView):
     """Logout user"""
+    authentication_classes = []  # Disable authentication
     permission_classes = []  # Allow unauthenticated access
     
     def post(self, request):
@@ -164,6 +167,7 @@ class LogoutView(APIView):
 @method_decorator(csrf_exempt, name='dispatch')
 class UserProfileView(APIView):
     """Get user profile information"""
+    authentication_classes = []  # Disable authentication
     permission_classes = []  # Allow unauthenticated access
     
     def get(self, request):
@@ -205,6 +209,7 @@ class UserProfileView(APIView):
 @method_decorator(csrf_exempt, name='dispatch')
 class SiteSelectionView(APIView):
     """Handle user site selection for scraping"""
+    authentication_classes = []  # Disable authentication for GET
     permission_classes = []  # Allow unauthenticated access to get available sites
     
     def get(self, request):
@@ -273,6 +278,7 @@ class UserPreferencesView(APIView):
 @method_decorator(csrf_exempt, name='dispatch')
 class CredentialManagementView(APIView):
     """Handle user credential storage and retrieval"""
+    authentication_classes = []  # Disable default authentication
     permission_classes = []  # Allow unauthenticated access to check auth status
     
     def get(self, request):
@@ -469,7 +475,8 @@ class CredentialVerificationView(APIView):
 @method_decorator(ensure_csrf_cookie, name='dispatch')
 class CSRFTokenView(APIView):
     """Get CSRF token for frontend"""
-    permission_classes = []
+    authentication_classes = []  # Disable authentication
+    permission_classes = []  # Allow unauthenticated access
     
     def get(self, request):
         return Response({

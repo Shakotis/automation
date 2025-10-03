@@ -48,7 +48,8 @@ export const Navbar = () => {
       const response = await authAPI.getUserProfile();
       setUser(response.user);
     } catch (error) {
-      // User not authenticated
+      // User not authenticated - this is normal and expected
+      // Don't log errors to avoid cluttering the console
       setUser(null);
     } finally {
       setLoading(false);

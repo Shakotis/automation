@@ -50,23 +50,51 @@ async function apiCall<T>(
   endpoint: string, 
   options: RequestInit = {}
 ): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint}`;
-  
-  const response = await fetch(url, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers as Record<string, string> || {}),
-    },
-    credentials: 'include', // Include cookies for session auth
-    ...options,
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
+  // Safety check for browser environment
+  if (typeof window === 'undefined') {
+    throw new Error('API calls can only be made from the browser');
   }
 
-  return response.json();
+  const url = `${API_BASE_URL}${endpoint}`;
+  
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers as Record<string, string> || {}),
+      },
+      credentials: 'include', // Include cookies for session auth
+      ...options,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const errorMessage = errorData.error || errorData.detail || `HTTP ${response.status}: ${response.statusText}`;
+      const error = new Error(errorMessage);
+      (error as any).status = response.status;
+      throw error;
+    }
+
+    return response.json();
+  } catch (error) {
+    // Only log unexpected errors (not auth failures or network issues on auth endpoints)
+    const isAuthEndpoint = endpoint.includes('/auth/user') || endpoint.includes('/auth/credentials');
+    const isAuthError = error instanceof Error && (
+      error.message.includes('401') || 
+      error.message.includes('User not authenticated') ||
+      (error as any).status === 401
+    );
+    const isNetworkError = error instanceof TypeError && error.message === 'Failed to fetch';
+    
+    // Don't log expected auth failures or network errors on auth check endpoints
+    if (!isAuthEndpoint || (!isAuthError && !isNetworkError)) {
+      if (error instanceof Error) {
+        console.error('[API] Error:', error.message);
+      }
+    }
+    
+    throw error;
+  }
 }
 
 // Authentication API

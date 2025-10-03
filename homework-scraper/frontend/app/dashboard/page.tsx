@@ -55,9 +55,18 @@ export default function DashboardPage() {
       const statsResponse = await fetch('/api/scraper/stats/', {
         credentials: 'include', // Include cookies for authentication
       });
+      
+      // If unauthorized, redirect to login
+      if (statsResponse.status === 401) {
+        window.location.href = '/';
+        return;
+      }
+      
       if (statsResponse.ok) {
         const statsData = await statsResponse.json();
         setStats(statsData);
+      } else {
+        throw new Error(`Failed to fetch stats: ${statsResponse.statusText}`);
       }
 
       // Fetch homework based on filter

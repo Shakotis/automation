@@ -77,7 +77,7 @@ export default function Home() {
       const response = await authAPI.getUserProfile();
       setUser(response.user);
     } catch (error) {
-      // User not authenticated
+      // User not authenticated - this is normal for first-time visitors
       setUser(null);
     } finally {
       setLoading(false);
