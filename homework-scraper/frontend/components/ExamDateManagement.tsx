@@ -8,7 +8,20 @@ import { Select, SelectItem } from "@heroui/select";
 import { Chip } from "@heroui/chip";
 import { Switch } from "@heroui/switch";
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/modal";
+import { addToast } from "@heroui/toast";
 import { CheckIcon, TaskIcon } from "@/components/icons";
+
+interface ScrapedExam {
+  id: number;
+  exam_name: string;
+  subject: string;
+  exam_date: string;
+  site: string;
+  url: string;
+  scraped_at: string;
+  synced_to_google_calendar: boolean;
+  google_calendar_event_id: string;
+}
 
 interface ExamEvent {
   id?: string;
@@ -32,6 +45,11 @@ interface IntegrationPreferences {
 }
 
 export default function ExamDateManagement() {
+  const [scrapedExams, setScrapedExams] = useState<ScrapedExam[]>([]);
+  const [isLoadingExams, setIsLoadingExams] = useState(true);
+  const [isScrapingExams, setIsScrapingExams] = useState(false);
+  const [isSyncingExams, setIsSyncingExams] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [preferences, setPreferences] = useState<IntegrationPreferences>({
     homework_sync_target: 'tasks',
     exam_sync_target: 'calendar',
@@ -53,9 +71,178 @@ export default function ExamDateManagement() {
   const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
+    checkAuth();
     loadPreferences();
     loadCalendars();
+    loadScrapedExams();
   }, []);
+
+  const checkAuth = async () => {
+    try {
+      const response = await fetch('/api/auth/user', {
+        credentials: 'include',
+      });
+      setIsAuthenticated(response.ok);
+    } catch (error) {
+      setIsAuthenticated(false);
+    }
+  };
+
+  const requireAuth = (action: string) => {
+    if (!isAuthenticated) {
+      addToast({
+        title: 'Authentication Required',
+        description: `Please sign in with Google to ${action}`,
+        color: 'danger',
+      });
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 2000);
+      return false;
+    }
+    return true;
+  };
+
+  const loadScrapedExams = async () => {
+    setIsLoadingExams(true);
+    try {
+      const response = await fetch('/api/scraper/exams', {
+        credentials: 'include',
+      });
+      
+      if (response.status === 401) {
+        addToast({
+          title: 'Authentication Required',
+          description: 'Please sign in with Google to view exams',
+          color: 'danger',
+        });
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 2000);
+        return;
+      }
+      
+      if (response.ok) {
+        const data = await response.json();
+        setScrapedExams(data.results || []);
+      } else {
+        addToast({
+          title: 'Failed to Load Exams',
+          description: 'Could not connect to backend server',
+          color: 'danger',
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load scraped exams:', error);
+      addToast({
+        title: 'Connection Error',
+        description: 'Failed to connect to backend server',
+        color: 'danger',
+      });
+    } finally {
+      setIsLoadingExams(false);
+    }
+  };
+
+  const scrapeExams = async () => {
+    setIsScrapingExams(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('/api/scraper/exams/scrape', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      
+      if (response.status === 401) {
+        addToast({
+          title: 'Authentication Required',
+          description: 'Please sign in with Google to scrape exams',
+          color: 'danger',
+        });
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 2000);
+        return;
+      }
+      
+      if (response.ok) {
+        const data = await response.json();
+        addToast({
+          title: 'Exams Scraped',
+          description: `Successfully scraped ${data.scraped_count} exams`,
+          color: 'success',
+        });
+        loadScrapedExams(); // Reload exams
+      } else {
+        const data = await response.json().catch(() => ({}));
+        const errorMsg = data.error || 'Failed to scrape exams';
+        addToast({
+          title: 'Scraping Failed',
+          description: errorMsg,
+          color: 'danger',
+        });
+      }
+    } catch (error) {
+      addToast({
+        title: 'Connection Error',
+        description: 'Failed to connect to backend server',
+        color: 'danger',
+      });
+    } finally {
+      setIsScrapingExams(false);
+    }
+  };
+
+  const syncExamsToCalendar = async () => {
+    setIsSyncingExams(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('/api/scraper/exams/sync-calendar', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      
+      if (response.status === 401) {
+        addToast({
+          title: 'Authentication Required',
+          description: 'Please sign in with Google to sync exams',
+          color: 'danger',
+        });
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 2000);
+        return;
+      }
+      
+      if (response.ok) {
+        const data = await response.json();
+        addToast({
+          title: 'Exams Synced',
+          description: `Successfully synced ${data.synced_count} exams to Google Calendar`,
+          color: 'success',
+        });
+        loadScrapedExams(); // Reload to show updated sync status
+      } else {
+        const data = await response.json().catch(() => ({}));
+        const errorMsg = data.error || 'Failed to sync exams';
+        addToast({
+          title: 'Sync Failed',
+          description: errorMsg,
+          color: 'danger',
+        });
+      }
+    } catch (error) {
+      addToast({
+        title: 'Connection Error',
+        description: 'Failed to connect to backend server',
+        color: 'danger',
+      });
+    } finally {
+      setIsSyncingExams(false);
+    }
+  };
 
   const loadPreferences = async () => {
     try {
@@ -250,8 +437,92 @@ export default function ExamDateManagement() {
         </CardBody>
       </Card>
 
+      {/* Scraped Exams Section */}
+      <Card>
+        <CardHeader className="flex justify-between items-center">
+          <h3 className="text-lg font-semibold">Scraped Exams from Manodienynas</h3>
+          <div className="flex gap-2">
+            <Button
+              color="primary"
+              variant="bordered"
+              onPress={() => {
+                if (!requireAuth('scrape exams')) return;
+                scrapeExams();
+              }}
+              isLoading={isScrapingExams}
+              size="sm"
+            >
+              🔄 Scrape Exams
+            </Button>
+            <Button
+              color="success"
+              variant="bordered"
+              onPress={() => {
+                if (!requireAuth('sync exams to calendar')) return;
+                syncExamsToCalendar();
+              }}
+              isLoading={isSyncingExams}
+              size="sm"
+            >
+              📅 Sync to Calendar
+            </Button>
+          </div>
+        </CardHeader>
+        <CardBody>
+          {isLoadingExams ? (
+            <div className="text-center py-8">
+              <p className="text-default-600">Loading exams...</p>
+            </div>
+          ) : scrapedExams.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-default-600 mb-4">No exams found</p>
+              <Button
+                color="primary"
+                onPress={() => {
+                  if (!requireAuth('scrape exams')) return;
+                  scrapeExams();
+                }}
+                isLoading={isScrapingExams}
+              >
+                Scrape Exams from Manodienynas
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {scrapedExams.map((exam) => (
+                <Card key={exam.id} className={exam.synced_to_google_calendar ? "bg-success-50" : ""}>
+                  <CardBody>
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-lg">{exam.exam_name}</h4>
+                        <div className="flex items-center gap-4 text-sm text-default-600 mt-1">
+                          <span>📚 {exam.subject}</span>
+                          <span>📅 {new Date(exam.exam_date).toLocaleDateString()}</span>
+                          <span>🌐 {exam.site}</span>
+                        </div>
+                      </div>
+                      <div>
+                        {exam.synced_to_google_calendar ? (
+                          <Chip size="sm" color="success" variant="flat">
+                            ✓ Synced to Calendar
+                          </Chip>
+                        ) : (
+                          <Chip size="sm" color="warning" variant="flat">
+                            Not Synced
+                          </Chip>
+                        )}
+                      </div>
+                    </div>
+                  </CardBody>
+                </Card>
+              ))}
+            </div>
+          )}
+        </CardBody>
+      </Card>
+
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
         <Card className="p-6">
           <CardBody className="text-center">
             <div className="text-4xl mb-4">📝</div>
@@ -261,26 +532,12 @@ export default function ExamDateManagement() {
             </p>
             <Button
               color="primary"
-              onPress={() => setShowExamModal(true)}
+              onPress={() => {
+                if (!requireAuth('add exam dates')) return;
+                setShowExamModal(true);
+              }}
             >
               Add Exam Date
-            </Button>
-          </CardBody>
-        </Card>
-
-        <Card className="p-6">
-          <CardBody className="text-center">
-            <div className="text-4xl mb-4">⚙️</div>
-            <h3 className="text-lg font-semibold mb-2">Integration Settings</h3>
-            <p className="text-default-600 mb-4">
-              Choose where to save homework and exam dates.
-            </p>
-            <Button
-              color="secondary"
-              variant="bordered"
-              onPress={() => setShowPreferencesModal(true)}
-            >
-              Manage Settings
             </Button>
           </CardBody>
         </Card>

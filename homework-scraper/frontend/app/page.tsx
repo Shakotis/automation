@@ -19,8 +19,19 @@ interface UserProfile {
   has_google_oauth: boolean;
 }
 
-// Demo homework data
-const demoHomework = [
+interface HomeworkItem {
+  id: number;
+  title: string;
+  description: string;
+  due_date: string | null;
+  subject: string;
+  site: string;
+  synced_to_google_tasks: boolean;
+  completed: boolean;
+}
+
+// Demo homework data (shown to non-authenticated users)
+const demoHomework: HomeworkItem[] = [
   {
     id: 1,
     title: "Matematikos namų darbai - Algebros uždaviniai",
@@ -29,6 +40,7 @@ const demoHomework = [
     subject: "Matematika",
     site: "manodienynas",
     synced_to_google_tasks: true,
+    completed: false,
   },
   {
     id: 2,
@@ -38,6 +50,7 @@ const demoHomework = [
     subject: "Lietuvių kalba",
     site: "eduka",
     synced_to_google_tasks: false,
+    completed: false,
   },
   {
     id: 3,
@@ -47,16 +60,16 @@ const demoHomework = [
     subject: "Fizika",
     site: "manodienynas",
     synced_to_google_tasks: true,
+    completed: false,
   },
 ];
 
-const formatDate = (dateString: string) => {
+const formatDate = (dateString: string | null) => {
+  if (!dateString) return 'No due date';
   return new Date(dateString).toLocaleDateString('lt-LT', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
   });
 };
 
@@ -67,6 +80,8 @@ const getSiteColor = (site: string) => {
 export default function Home() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [homework, setHomework] = useState<HomeworkItem[]>(demoHomework);
+  const [loadingHomework, setLoadingHomework] = useState(false);
 
   useEffect(() => {
     checkAuthStatus();
@@ -76,11 +91,42 @@ export default function Home() {
     try {
       const response = await authAPI.getUserProfile();
       setUser(response.user);
+      // Fetch real homework for authenticated users
+      await fetchRealHomework();
     } catch (error) {
       // User not authenticated - this is normal for first-time visitors
       setUser(null);
+      setHomework(demoHomework); // Show demo data
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchRealHomework = async () => {
+    try {
+      setLoadingHomework(true);
+      const response = await fetch('/api/scraper/homework/?status=upcoming', {
+        credentials: 'include',
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const results = data.results || data;
+        if (Array.isArray(results) && results.length > 0) {
+          // Show first 3 items
+          setHomework(results.slice(0, 3));
+        } else {
+          // No homework found, show empty array (not demo)
+          setHomework([]);
+        }
+      } else {
+        // API error, show empty array
+        setHomework([]);
+      }
+    } catch (error) {
+      console.error('Error fetching homework:', error);
+      setHomework([]);
+    } finally {
+      setLoadingHomework(false);
     }
   };
 
@@ -102,15 +148,6 @@ export default function Home() {
       {!loading && !user && (
         <div className="flex gap-3">
           <GoogleSignInButton />
-          <Button
-            as={Link}
-            href="/dashboard"
-            radius="full"
-            size="lg"
-            variant="bordered"
-          >
-            View Demo
-          </Button>
         </div>
       )}
 
@@ -125,95 +162,218 @@ export default function Home() {
             color="primary"
             variant="shadow"
           >
-            Go to Dashboard
+            View Homework
           </Button>
           <Button
             as={Link}
-            href="/homework"
+            href="/exams"
             radius="full"
             size="lg"
             variant="bordered"
           >
-            View Homework
+            View Exams
           </Button>
         </div>
       )}
 
-      {/* Demo Preview Section */}
+      {/* Preview Section - Shows real homework for logged in users, demo for guests */}
       <div className="w-full max-w-4xl mt-12">
         <div className="text-center mb-6">
-          <h2 className="text-2xl font-bold mb-2">See It In Action</h2>
+          <h2 className="text-2xl font-bold mb-2">
+            {user ? 'Your Upcoming Homework' : 'See It In Action'}
+          </h2>
           <p className="text-default-500">
-            Preview how your homework will be automatically organized and synced
+            {user 
+              ? 'Your latest homework assignments from Manodienynas and Eduka'
+              : 'Preview how your homework will be automatically organized and synced'
+            }
           </p>
         </div>
         
-        <div className="space-y-4">
-          {demoHomework.map((item) => (
-            <Card key={item.id} className="hover:bg-default-50 transition-colors">
-              <CardBody>
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h3 className="font-semibold text-lg">{item.title}</h3>
-                      <Chip
-                        size="sm"
-                        color={getSiteColor(item.site)}
-                        variant="flat"
-                      >
-                        {item.site}
-                      </Chip>
-                      {item.synced_to_google_tasks ? (
-                        <Chip size="sm" color="success" variant="flat">
-                          ✓ Synced
+        {loadingHomework ? (
+          <div className="flex justify-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          </div>
+        ) : user && homework.length === 0 ? (
+          <Card className="py-8">
+            <CardBody className="text-center">
+              <div className="flex flex-col items-center gap-4">
+                <div className="text-6xl">📚</div>
+                <h3 className="text-xl font-semibold">No Homework Yet</h3>
+                <p className="text-default-500 max-w-md">
+                  You don't have any homework assignments yet. Click "Scrape Now" on your dashboard to fetch homework from Manodienynas and Eduka.
+                </p>
+                <Button
+                  as={Link}
+                  href="/dashboard"
+                  color="primary"
+                  variant="shadow"
+                  size="lg"
+                >
+                  Go to Dashboard
+                </Button>
+              </div>
+            </CardBody>
+          </Card>
+        ) : !user && homework.length === 0 ? (
+          <div className="space-y-4">
+            {demoHomework.map((item) => (
+              <Card key={item.id} className={`hover:bg-default-50 transition-colors ${item.completed ? 'opacity-60' : ''}`}>
+                <CardBody>
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <h3 className={`font-semibold text-lg ${item.completed ? 'line-through' : ''}`}>
+                          {item.title}
+                        </h3>
+                        <Chip
+                          size="sm"
+                          color={getSiteColor(item.site)}
+                          variant="flat"
+                        >
+                          {item.site}
                         </Chip>
-                      ) : (
-                        <Chip size="sm" color="warning" variant="flat">
-                          Not Synced
-                        </Chip>
+                        {item.completed ? (
+                          <Chip size="sm" color="success" variant="flat">
+                            ✓ Completed
+                          </Chip>
+                        ) : item.synced_to_google_tasks ? (
+                          <Chip size="sm" color="success" variant="flat">
+                            ✓ Synced
+                          </Chip>
+                        ) : (
+                          <Chip size="sm" color="warning" variant="flat">
+                            Not Synced
+                          </Chip>
+                        )}
+                      </div>
+                      
+                      <p className="text-default-600 mb-3 line-clamp-2">
+                        {item.description}
+                      </p>
+                      
+                      <div className="flex items-center gap-6 text-sm text-default-500">
+                        <span>📚 {item.subject}</span>
+                        <span>📅 {formatDate(item.due_date)}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-2 ml-4">
+                      {!item.synced_to_google_tasks && (
+                        <Button
+                          size="sm"
+                          color="success"
+                          variant="flat"
+                          disabled
+                        >
+                          Sync
+                        </Button>
                       )}
-                    </div>
-                    
-                    <p className="text-default-600 mb-3 line-clamp-2">
-                      {item.description}
-                    </p>
-                    
-                    <div className="flex items-center gap-6 text-sm text-default-500">
-                      <span>📚 {item.subject}</span>
-                      <span>📅 {formatDate(item.due_date)}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="flex gap-2 ml-4">
-                    {!item.synced_to_google_tasks && (
                       <Button
                         size="sm"
-                        color="success"
-                        variant="flat"
+                        variant="light"
                         disabled
                       >
-                        Sync
+                        View Source
                       </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="light"
-                      disabled
-                    >
-                      View Source
-                    </Button>
+                    </div>
                   </div>
-                </div>
-              </CardBody>
-            </Card>
-          ))}
-        </div>
+                </CardBody>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {homework.map((item) => (
+              <Card key={item.id} className={`hover:bg-default-50 transition-colors ${item.completed ? 'opacity-60' : ''}`}>
+                <CardBody>
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <h3 className={`font-semibold text-lg ${item.completed ? 'line-through' : ''}`}>
+                          {item.title}
+                        </h3>
+                        <Chip
+                          size="sm"
+                          color={getSiteColor(item.site)}
+                          variant="flat"
+                        >
+                          {item.site}
+                        </Chip>
+                        {item.completed ? (
+                          <Chip size="sm" color="success" variant="flat">
+                            ✓ Completed
+                          </Chip>
+                        ) : item.synced_to_google_tasks ? (
+                          <Chip size="sm" color="success" variant="flat">
+                            ✓ Synced
+                          </Chip>
+                        ) : (
+                          <Chip size="sm" color="warning" variant="flat">
+                            Not Synced
+                          </Chip>
+                        )}
+                      </div>
+                      
+                      <p className="text-default-600 mb-3 line-clamp-2">
+                        {item.description}
+                      </p>
+                      
+                      <div className="flex items-center gap-6 text-sm text-default-500">
+                        <span>📚 {item.subject}</span>
+                        <span>📅 {formatDate(item.due_date)}</span>
+                      </div>
+                    </div>
+                    
+                    {!user && (
+                      <div className="flex gap-2 ml-4">
+                        {!item.synced_to_google_tasks && (
+                          <Button
+                            size="sm"
+                            color="success"
+                            variant="flat"
+                            disabled
+                          >
+                            Sync
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="light"
+                          disabled
+                        >
+                          View Source
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </CardBody>
+              </Card>
+            ))}
+          </div>
+        )}
         
         <div className="text-center mt-6">
-          <p className="text-sm text-default-500 mb-4">
-            This is demo data. {user ? 'Go to your dashboard to see real homework assignments!' : 'Sign in to see your actual homework assignments!'}
-          </p>
-          {!user && <GoogleSignInButton />}
+          {user && homework.length === 0 ? (
+            null  // Already showing message in the card above
+          ) : user ? (
+            <Button
+              as={Link}
+              href="/dashboard"
+              color="primary"
+              variant="flat"
+              size="lg"
+            >
+              View All Homework
+            </Button>
+          ) : (
+            <>
+              <p className="text-sm text-default-500 mb-4">
+                This is demo data. Sign in to see your actual homework assignments!
+              </p>
+              <GoogleSignInButton />
+            </>
+          )}
         </div>
       </div>
 

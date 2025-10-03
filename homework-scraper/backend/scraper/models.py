@@ -22,6 +22,8 @@ class ScrapedHomework(models.Model):
     google_calendar_event_id = models.CharField(max_length=200, blank=True)
     completed = models.BooleanField(default=False)
     completed_at = models.DateTimeField(null=True, blank=True)
+    deleted = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(null=True, blank=True)
     
     class Meta:
         ordering = ['due_date', '-scraped_at']
@@ -53,3 +55,30 @@ class UserScrapingPreferences(models.Model):
     
     def __str__(self):
         return f"Preferences for {self.user.username}"
+
+
+class ScrapedExam(models.Model):
+    """Model to store scraped exam/test dates"""
+    SITE_CHOICES = [
+        ('manodienynas', 'Manodienynas.lt'),
+        ('eduka', 'Eduka.lt'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    site = models.CharField(max_length=20, choices=SITE_CHOICES)
+    exam_name = models.CharField(max_length=500)
+    subject = models.CharField(max_length=200)
+    exam_date = models.DateTimeField()
+    url = models.URLField(max_length=1000, blank=True)
+    scraped_at = models.DateTimeField(auto_now_add=True)
+    synced_to_google_calendar = models.BooleanField(default=False)
+    google_calendar_event_id = models.CharField(max_length=200, blank=True)
+    synced_to_google_tasks = models.BooleanField(default=False)
+    google_task_id = models.CharField(max_length=200, blank=True)
+    
+    class Meta:
+        ordering = ['exam_date', '-scraped_at']
+        unique_together = ['user', 'site', 'exam_name', 'exam_date']
+    
+    def __str__(self):
+        return f"{self.exam_name} ({self.subject}) - {self.exam_date.strftime('%Y-%m-%d')}"

@@ -24,11 +24,15 @@ class BaseScraper:
     def get_selenium_driver(self):
         """Setup Chrome driver for Selenium"""
         chrome_options = Options()
-        chrome_options.add_argument('--headless')
+        # Temporarily disable headless mode for debugging
+        # chrome_options.add_argument('--headless')  # COMMENTED OUT FOR DEBUGGING
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
         chrome_options.add_argument('--disable-gpu')
         chrome_options.add_argument('--window-size=1920,1080')
+        chrome_options.add_argument('--disable-blink-features=AutomationControlled')  # Hide automation
+        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        chrome_options.add_experimental_option('useAutomationExtension', False)
         return webdriver.Chrome(options=chrome_options)
     
     def parse_date(self, date_str):
@@ -36,23 +40,48 @@ class BaseScraper:
         if not date_str:
             return None
         
-        # Common Lithuanian date patterns
+        # Clean up the date string
+        date_str = date_str.strip()
+        
+        # Lithuanian month names mapping
+        lithuanian_months = {
+            'sausio': '01', 'sausis': '01',
+            'vasario': '02', 'vasaris': '02',
+            'kovo': '03', 'kovas': '03',
+            'balandžio': '04', 'balandis': '04',
+            'gegužės': '05', 'gegužė': '05',
+            'birželio': '06', 'birželis': '06',
+            'liepos': '07', 'liepа': '07',
+            'rugpjūčio': '08', 'rugpjūtis': '08',
+            'rugsėjo': '09', 'rugsėjis': '09',
+            'spalio': '10', 'spalis': '10',
+            'lapkričio': '11', 'lapkritis': '11',
+            'gruodžio': '12', 'gruodis': '12'
+        }
+        
+        # Try to replace Lithuanian month names with numbers
+        date_str_lower = date_str.lower()
+        for lt_month, month_num in lithuanian_months.items():
+            if lt_month in date_str_lower:
+                date_str = date_str_lower.replace(lt_month, month_num)
+                break
+        
+        # Common date patterns
         patterns = [
-            r'(\d{4}-\d{2}-\d{2})',  # YYYY-MM-DD
-            r'(\d{2}.\d{2}.\d{4})',  # DD.MM.YYYY
-            r'(\d{2}/\d{2}/\d{4})',  # DD/MM/YYYY
+            (r'(\d{4})-(\d{2})-(\d{2})', '%Y-%m-%d'),  # YYYY-MM-DD (most common in Manodienynas)
+            (r'(\d{2})\.(\d{2})\.(\d{4})', '%d.%m.%Y'),  # DD.MM.YYYY
+            (r'(\d{2})/(\d{2})/(\d{4})', '%d/%m/%Y'),  # DD/MM/YYYY
+            (r'(\d{4})\.(\d{2})\.(\d{2})', '%Y.%m.%d'),  # YYYY.MM.DD
+            (r'(\d{2})\s+(\d{2})\s+(\d{4})', '%d %m %Y'),  # DD MM YYYY with spaces
         ]
         
-        for pattern in patterns:
+        for pattern, date_format in patterns:
             match = re.search(pattern, date_str)
             if match:
                 try:
-                    if '-' in match.group(1):
-                        return datetime.strptime(match.group(1), '%Y-%m-%d')
-                    elif '.' in match.group(1):
-                        return datetime.strptime(match.group(1), '%d.%m.%Y')
-                    elif '/' in match.group(1):
-                        return datetime.strptime(match.group(1), '%d/%m/%Y')
+                    date_obj = datetime.strptime(match.group(0), date_format)
+                    # Make timezone aware
+                    return timezone.make_aware(date_obj)
                 except ValueError:
                     continue
         
@@ -80,90 +109,104 @@ class ManodienynasScaper(BaseScraper):
             if not self.driver:
                 self.driver = self.get_selenium_driver()
             
+            print(f"DEBUG: Navigating to login page: {self.login_url}")
             self.driver.get(self.login_url)
+            time.sleep(5)  # Increased wait time
             
-            wait = WebDriverWait(self.driver, 15)
+            wait = WebDriverWait(self.driver, 20)  # Increased timeout
             
-            # Look for username field
-            username_selectors = [
-                "input[name='username']",
-                "input[name='user']",
-                "input[name='login']",
-                "#username",
-                "#user",
-                "#login",
-                ".username-input",
-                ".user-input"
-            ]
+            # Save screenshot before login
+            try:
+                self.driver.save_screenshot(f"debug_manodienynas_login_page_{self.user.id}.png")
+                print(f"DEBUG: Login page screenshot saved")
+            except:
+                pass
             
+            # Use specific XPath selectors for Manodienynas
+            # XPath: //*[@id="dl_username"] for username
+            # XPath: //*[@id="dl_password"] for password
+            # XPath: //*[@id="login_submit"] for submit button
+            
+            print(f"DEBUG: Looking for username field with XPath: //*[@id='dl_username']")
             username_field = None
-            for selector in username_selectors:
-                try:
-                    username_field = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
-                    break
-                except:
-                    continue
+            try:
+                username_field = wait.until(EC.presence_of_element_located((By.XPATH, '//*[@id="dl_username"]')))
+                # Try to make it visible and clickable
+                self.driver.execute_script("arguments[0].scrollIntoView(true);", username_field)
+                time.sleep(1)
+                username_field = wait.until(EC.element_to_be_clickable((By.XPATH, '//*[@id="dl_username"]')))
+                print(f"DEBUG: Found username field with XPath")
+            except Exception as e:
+                print(f"DEBUG: Failed to find username field: {str(e)}")
+                raise Exception("Username field not found with XPath //*[@id='dl_username']")
             
-            if not username_field:
-                raise Exception("Username field not found")
-            
-            # Look for password field
-            password_selectors = [
-                "input[type='password']",
-                "input[name='password']",
-                "#password",
-                ".password-input"
-            ]
-            
+            print(f"DEBUG: Looking for password field with XPath: //*[@id='dl_password']")
             password_field = None
-            for selector in password_selectors:
-                try:
-                    password_field = self.driver.find_element(By.CSS_SELECTOR, selector)
-                    break
-                except:
-                    continue
-            
-            if not password_field:
-                raise Exception("Password field not found")
+            try:
+                password_field = self.driver.find_element(By.XPATH, '//*[@id="dl_password"]')
+                print(f"DEBUG: Found password field with XPath")
+            except Exception as e:
+                print(f"DEBUG: Failed to find password field: {str(e)}")
+                raise Exception("Password field not found with XPath //*[@id='dl_password']")
             
             # Enter credentials
+            print(f"DEBUG: Entering username: {username}")
             username_field.clear()
             username_field.send_keys(username)
-            time.sleep(0.5)
+            time.sleep(1)
             
+            print(f"DEBUG: Entering password")
             password_field.clear()
             password_field.send_keys(password)
-            time.sleep(0.5)
+            time.sleep(1)
             
-            # Find and click submit button
-            submit_selectors = [
-                "button[type='submit']",
-                "input[type='submit']",
-                "button.login-button",
-                "button.submit-button",
-                ".login-form button",
-                "form button",
-                "[value='Prisijungti']",  # Lithuanian for "Login"
-                "[value='LOGIN']"
-            ]
+            # Save screenshot before submitting
+            try:
+                self.driver.save_screenshot(f"debug_manodienynas_before_submit_{self.user.id}.png")
+                print(f"DEBUG: Before submit screenshot saved")
+            except:
+                pass
             
+            # Find and click submit button using XPath: //*[@id="login_submit"]
+            print(f"DEBUG: Looking for submit button with XPath: //*[@id='login_submit']")
             submit_button = None
-            for selector in submit_selectors:
-                try:
-                    submit_button = self.driver.find_element(By.CSS_SELECTOR, selector)
-                    break
-                except:
-                    continue
+            try:
+                submit_button = self.driver.find_element(By.XPATH, '//*[@id="login_submit"]')
+                # Scroll into view and make clickable
+                self.driver.execute_script("arguments[0].scrollIntoView(true);", submit_button)
+                time.sleep(1)
+                print(f"DEBUG: Found submit button with XPath")
+            except Exception as e:
+                print(f"DEBUG: Failed to find submit button: {str(e)}")
+                raise Exception("Submit button not found with XPath //*[@id='login_submit']")
             
             if not submit_button:
                 raise Exception("Submit button not found")
             
-            submit_button.click()
-            time.sleep(3)
+            print(f"DEBUG: Clicking submit button")
+            try:
+                # Try normal click first
+                submit_button.click()
+            except:
+                # If normal click fails, try JavaScript click
+                print(f"DEBUG: Normal click failed, trying JavaScript click")
+                self.driver.execute_script("arguments[0].click();", submit_button)
+            
+            time.sleep(5)  # Increased wait time
+            
+            # Save screenshot after submit
+            try:
+                self.driver.save_screenshot(f"debug_manodienynas_after_submit_{self.user.id}.png")
+                print(f"DEBUG: After submit screenshot saved")
+            except:
+                pass
             
             # Verify login success
             current_url = self.driver.current_url.lower()
             page_source = self.driver.page_source.lower()
+            
+            print(f"DEBUG: After login - URL: {current_url}")
+            print(f"DEBUG: After login - Page title: {self.driver.title}")
             
             # Check for success indicators
             success_indicators = [
@@ -177,243 +220,30 @@ class ManodienynasScaper(BaseScraper):
                 self.is_logged_in = True
                 # Save session for future use
                 self.session_manager.save_session(self.driver)
+                print(f"DEBUG: Login successful!")
                 return True
             else:
+                print(f"DEBUG: Login failed - still on login page or no success indicators")
                 raise Exception("Login failed - authentication unsuccessful")
                 
         except Exception as e:
             print(f"Login failed: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def scrape_homework(self):
-        """Scrape homework from manodienynas.lt using session management"""
-        homework_list = []
+        """Scrape homework from manodienynas.lt using simple urllib approach"""
+        # Import and use the simple scraper
+        from .manodienynas_simple import scrape_manodienynas_homework
         
-        try:
-            # Get user credentials from the credential storage
-            from authentication.credential_storage import SecureCredentialStorage
-            credential_storage = SecureCredentialStorage()
-            credentials = credential_storage.get_user_credentials(self.user.id, 'manodienynas')
-            
-            if not credentials:
-                print("No Manodienynas credentials found for user")
-                return homework_list
-            
-            if not credentials.get('is_verified', False):
-                print("Manodienynas credentials not verified - please verify them first")
-                return homework_list
-            
-            username = credentials['username']
-            password = credentials['password']
-            
-            # Try to get an authenticated driver (with existing session)
-            self.driver, session_loaded = self.session_manager.get_authenticated_driver()
-            
-            if session_loaded:
-                print("Using existing authenticated session")
-                self.is_logged_in = True
-            else:
-                print("No valid session found, logging in...")
-                # Login to Manodienynas
-                if not self.login(username, password):
-                    print("Failed to login to Manodienynas")
-                    return homework_list
-            
-            # Navigate to homework section
-            try:
-                self.driver.get(self.homework_url)
-                time.sleep(3)
-                
-                # Check if we're still authenticated after navigation
-                if not self.session_manager.is_session_valid(self.driver):
-                    print("Session expired, attempting re-login...")
-                    self.session_manager.clear_session()
-                    if not self.login(username, password):
-                        print("Re-login failed")
-                        return homework_list
-                    self.driver.get(self.homework_url)
-                    time.sleep(3)
-                
-                # Look for homework content
-                homework_elements = []
-                
-                # Common selectors for homework items in Manodienynas
-                homework_selectors = [
-                    ".homework-item",
-                    ".assignment",
-                    ".task",
-                    ".work-item",
-                    "tr.homework",
-                    "tr.assignment",
-                    ".homework-row",
-                    ".table-row",
-                    "tbody tr"
-                ]
-                
-                for selector in homework_selectors:
-                    try:
-                        elements = self.driver.find_elements(By.CSS_SELECTOR, selector)
-                        if elements:
-                            homework_elements.extend(elements)
-                            break
-                    except:
-                        continue
-                
-                # If no specific homework elements found, look for table content
-                if not homework_elements:
-                    content_selectors = [
-                        ".content table tr",
-                        ".main-content tr",
-                        ".homework-table tr",
-                        "table tr",
-                        ".data-table tr"
-                    ]
-                    
-                    for selector in content_selectors:
-                        try:
-                            elements = self.driver.find_elements(By.CSS_SELECTOR, selector)
-                            if len(elements) > 1:  # Skip header row
-                                homework_elements.extend(elements[1:])  # Skip first (header) row
-                                break
-                        except:
-                            continue
-                
-                # Parse homework from found elements
-                for element in homework_elements[:10]:  # Limit to first 10 items
-                    try:
-                        # Extract text content from the element
-                        element_text = element.text.strip()
-                        
-                        if not element_text or len(element_text) < 10:
-                            continue
-                        
-                        # Try to find title in various ways
-                        title = ""
-                        try:
-                            # Look for specific title elements
-                            title_selectors = ["td:first-child", ".title", ".subject", "strong", "b"]
-                            for sel in title_selectors:
-                                try:
-                                    title_elem = element.find_element(By.CSS_SELECTOR, sel)
-                                    title = title_elem.text.strip()
-                                    if title:
-                                        break
-                                except:
-                                    continue
-                            
-                            # If no specific title found, use first meaningful text
-                            if not title:
-                                text_parts = element_text.split('\n')
-                                title = text_parts[0] if text_parts else "Namų darbai"
-                                
-                        except:
-                            title = "Manodienynas namų darbai"
-                        
-                        # Look for description
-                        description = ""
-                        try:
-                            desc_selectors = [".description", "td:nth-child(2)", ".content"]
-                            for sel in desc_selectors:
-                                try:
-                                    desc_elem = element.find_element(By.CSS_SELECTOR, sel)
-                                    description = desc_elem.text.strip()
-                                    if description:
-                                        break
-                                except:
-                                    continue
-                            
-                            if not description:
-                                # Use remaining text as description
-                                text_parts = element_text.split('\n')
-                                description = '\n'.join(text_parts[1:]) if len(text_parts) > 1 else "Namų darbų aprašymas"
-                                
-                        except:
-                            description = "Detalus aprašymas Manodienynas platformoje"
-                        
-                        # Look for due date
-                        due_date = timezone.now() + timezone.timedelta(days=7)  # Default
-                        try:
-                            date_selectors = [".due-date", ".deadline", ".date", "td:last-child", ".date-column"]
-                            for sel in date_selectors:
-                                try:
-                                    date_elem = element.find_element(By.CSS_SELECTOR, sel)
-                                    date_text = date_elem.text.strip()
-                                    parsed_date = self.parse_date(date_text)
-                                    if parsed_date:
-                                        due_date = parsed_date
-                                        break
-                                except:
-                                    continue
-                        except:
-                            pass
-                        
-                        # Look for subject
-                        subject = "Manodienynas"
-                        try:
-                            subject_selectors = [".subject", ".course", ".class", "td:nth-child(1)"]
-                            for sel in subject_selectors:
-                                try:
-                                    subject_elem = element.find_element(By.CSS_SELECTOR, sel)
-                                    subject_text = subject_elem.text.strip()
-                                    if subject_text and len(subject_text) < 50:  # Reasonable subject length
-                                        subject = subject_text
-                                        break
-                                except:
-                                    continue
-                        except:
-                            pass
-                        
-                        # Create homework entry
-                        homework_entry = {
-                            'title': title[:100],  # Limit title length
-                            'description': description[:500],  # Limit description length
-                            'due_date': due_date,
-                            'subject': subject,
-                            'url': self.driver.current_url,
-                            'site': 'manodienynas'
-                        }
-                        
-                        homework_list.append(homework_entry)
-                        
-                    except Exception as e:
-                        print(f"Error parsing homework element: {e}")
-                        continue
-                
-                # If still no homework found, create a sample entry to indicate successful login
-                if not homework_list:
-                    homework_list = [{
-                        'title': 'Manodienynas prisijungimas sėkmingas',
-                        'description': 'Sėkmingai prisijungta prie Manodienynas platformos. Namų darbų nerasta arba jie gali būti kitoje skiltyje.',
-                        'due_date': timezone.now() + timezone.timedelta(days=1),
-                        'subject': 'Sistema',
-                        'url': self.driver.current_url,
-                        'site': 'manodienynas'
-                    }]
-                
-            except Exception as e:
-                print(f"Error navigating Manodienynas pages: {e}")
-                # Still return at least one entry to show login was successful
-                homework_list = [{
-                    'title': 'Manodienynas prisijungimas patvirtintas',
-                    'description': f'Sėkmingai prisijungta prie Manodienynas, bet kilo navigacijos problema: {str(e)}',
-                    'due_date': timezone.now() + timezone.timedelta(days=1),
-                    'subject': 'Sistema',
-                    'url': self.login_url,
-                    'site': 'manodienynas'
-                }]
-            
-        except Exception as e:
-            print(f"Error scraping manodienynas: {e}")
-        finally:
-            # Clean up driver (but don't clear session - it's saved)
-            if self.driver:
-                try:
-                    self.driver.quit()
-                except:
-                    pass
-                self.driver = None
-                self.is_logged_in = False
+        print("\n" + "="*60)
+        print("SCRAPING MANODIENYNAS (urllib method)")
+        print("="*60)
         
+        homework_list = scrape_manodienynas_homework(self.user)
+        
+        print(f"✓ Scraped {len(homework_list)} items from ManoDienynas")
         return homework_list
 
 class EdukaScraper(BaseScraper):
@@ -438,96 +268,138 @@ class EdukaScraper(BaseScraper):
             if not self.driver:
                 self.driver = self.get_selenium_driver()
             
+            print(f"DEBUG: Navigating to Eduka auth page: {self.auth_url}")
             self.driver.get(self.auth_url)
+            time.sleep(5)
             
-            wait = WebDriverWait(self.driver, 15)
+            wait = WebDriverWait(self.driver, 20)
             
-            # Look for email/username field
-            username_selectors = [
-                "input[type='email']",
-                "input[name='email']", 
-                "input[name='username']",
-                "#email",
-                "#username",
-                ".email-input",
-                ".username-input"
-            ]
+            # Save screenshot before login
+            try:
+                self.driver.save_screenshot(f"debug_eduka_login_page_{self.user.id}.png")
+                print(f"DEBUG: Eduka login page screenshot saved")
+            except:
+                pass
             
+            # Use specific XPath selectors for Eduka
+            # XPath: //*[@id="username"] for username
+            # XPath: //*[@id="password"] for password
+            # XPath: /html/body/app-root/div/app-classroom/app-auth/app-auth-card/div/div/div/app-auth-login/div/div[2]/div/app-auth-login-form/div[2]/button for submit
+            
+            print(f"DEBUG: Looking for username field with XPath: //*[@id='username']")
             username_field = None
-            for selector in username_selectors:
-                try:
-                    username_field = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
-                    break
-                except:
-                    continue
+            try:
+                username_field = wait.until(EC.presence_of_element_located((By.XPATH, '//*[@id="username"]')))
+                self.driver.execute_script("arguments[0].scrollIntoView(true);", username_field)
+                time.sleep(1)
+                username_field = wait.until(EC.element_to_be_clickable((By.XPATH, '//*[@id="username"]')))
+                print(f"DEBUG: Found username field with XPath")
+            except Exception as e:
+                print(f"DEBUG: Failed to find username field: {str(e)}")
+                raise Exception("Username field not found with XPath //*[@id='username']")
             
-            if not username_field:
-                raise Exception("Username/email field not found")
-            
-            # Look for password field
-            password_selectors = [
-                "input[type='password']",
-                "input[name='password']",
-                "#password",
-                ".password-input"
-            ]
-            
+            print(f"DEBUG: Looking for password field with XPath: //*[@id='password']")
             password_field = None
-            for selector in password_selectors:
-                try:
-                    password_field = self.driver.find_element(By.CSS_SELECTOR, selector)
-                    break
-                except:
-                    continue
-            
-            if not password_field:
-                raise Exception("Password field not found")
+            try:
+                password_field = self.driver.find_element(By.XPATH, '//*[@id="password"]')
+                print(f"DEBUG: Found password field with XPath")
+            except Exception as e:
+                print(f"DEBUG: Failed to find password field: {str(e)}")
+                raise Exception("Password field not found with XPath //*[@id='password']")
             
             # Enter credentials
+            print(f"DEBUG: Entering username: {username}")
             username_field.clear()
             username_field.send_keys(username)
-            time.sleep(0.5)
+            time.sleep(1)
             
+            print(f"DEBUG: Entering password")
             password_field.clear()
             password_field.send_keys(password)
-            time.sleep(0.5)
+            time.sleep(1)
             
-            # Find and click submit button
-            submit_selectors = [
-                "button[type='submit']",
-                "input[type='submit']",
-                "button.login-button",
-                "button.submit-button",
-                ".login-form button",
-                "form button"
-            ]
+            # Save screenshot before submitting
+            try:
+                self.driver.save_screenshot(f"debug_eduka_before_submit_{self.user.id}.png")
+                print(f"DEBUG: Before submit screenshot saved")
+            except:
+                pass
             
+            # Find and click submit button using XPath
+            print(f"DEBUG: Looking for submit button with XPath")
             submit_button = None
-            for selector in submit_selectors:
+            try:
+                # Try the specific XPath first
+                submit_button = self.driver.find_element(By.XPATH, '/html/body/app-root/div/app-classroom/app-auth/app-auth-card/div/div/div/app-auth-login/div/div[2]/div/app-auth-login-form/div[2]/button')
+                print(f"DEBUG: Found submit button with specific XPath")
+            except Exception as e1:
+                print(f"DEBUG: Specific XPath failed, trying generic button selector: {str(e1)}")
                 try:
-                    submit_button = self.driver.find_element(By.CSS_SELECTOR, selector)
-                    break
-                except:
-                    continue
+                    # Fallback: Look for any button in the login form
+                    submit_button = self.driver.find_element(By.CSS_SELECTOR, 'app-auth-login-form button[type="submit"]')
+                    print(f"DEBUG: Found submit button with CSS selector")
+                except Exception as e2:
+                    print(f"DEBUG: CSS selector failed: {str(e2)}")
+                    # Last fallback: any button containing login-related text
+                    try:
+                        submit_button = self.driver.find_element(By.XPATH, "//button[contains(text(), 'Prisijungti') or contains(text(), 'Login') or contains(text(), 'Sign in')]")
+                        print(f"DEBUG: Found submit button by text content")
+                    except Exception as e3:
+                        print(f"DEBUG: Text-based search failed: {str(e3)}")
+                        raise Exception("Submit button not found")
             
-            if not submit_button:
+            if submit_button:
+                # Scroll into view and make clickable
+                self.driver.execute_script("arguments[0].scrollIntoView(true);", submit_button)
+                time.sleep(1)
+                print(f"DEBUG: Clicking submit button")
+                try:
+                    submit_button.click()
+                except:
+                    # Try JavaScript click if normal click fails
+                    print(f"DEBUG: Normal click failed, trying JavaScript click")
+                    self.driver.execute_script("arguments[0].click();", submit_button)
+            else:
                 raise Exception("Submit button not found")
             
-            submit_button.click()
-            time.sleep(3)
+            time.sleep(5)
+            
+            # Save screenshot after submit
+            try:
+                self.driver.save_screenshot(f"debug_eduka_after_submit_{self.user.id}.png")
+                print(f"DEBUG: After submit screenshot saved")
+            except:
+                pass
             
             # Verify login success
             current_url = self.driver.current_url.lower()
-            if "auth" not in current_url or "dashboard" in current_url or "student" in current_url:
+            page_source = self.driver.page_source.lower()
+            
+            print(f"DEBUG: After login - URL: {current_url}")
+            print(f"DEBUG: After login - Page title: {self.driver.title}")
+            
+            # Check for success indicators
+            success_indicators = [
+                "student", "my-groups", "dashboard", "mokinys", "logout", 
+                "atsijungti", "prisijungta", "classroom"
+            ]
+            
+            has_success = any(indicator in page_source or indicator in current_url for indicator in success_indicators)
+            
+            if has_success and "auth" not in current_url:
                 self.is_logged_in = True
                 # Save session for future use
                 self.session_manager.save_session(self.driver)
+                print(f"DEBUG: Eduka login successful!")
                 return True
             else:
-                raise Exception("Login failed - still on auth page")
+                print(f"DEBUG: Eduka login failed - still on auth page or no success indicators")
+                raise Exception("Login failed - authentication unsuccessful")
                 
         except Exception as e:
             print(f"Login failed: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def scrape_homework(self):
@@ -566,8 +438,21 @@ class EdukaScraper(BaseScraper):
             
             # Navigate to student groups/homework section
             try:
+                print(f"Navigating to groups page: {self.groups_url}")
                 self.driver.get(self.groups_url)
                 time.sleep(3)
+                
+                # Save screenshot for debugging
+                try:
+                    screenshot_path = f"debug_eduka_groups_{self.user.id}.png"
+                    self.driver.save_screenshot(screenshot_path)
+                    print(f"Groups page screenshot saved to: {screenshot_path}")
+                except Exception as screenshot_error:
+                    print(f"Could not save screenshot: {screenshot_error}")
+                
+                # Print page info for debugging
+                print(f"Page title: {self.driver.title}")
+                print(f"Current URL: {self.driver.current_url}")
                 
                 # Check if we're still authenticated after navigation
                 if not self.session_manager.is_session_valid(self.driver):
@@ -579,112 +464,46 @@ class EdukaScraper(BaseScraper):
                     self.driver.get(self.groups_url)
                     time.sleep(3)
                 
-                # Look for homework/assignments content
-                homework_elements = []
+                # Look for group links to navigate to
+                # Based on HTML: <a href="/fe/student/my-groups/7145079/recipient-assignment">
+                group_links = []
+                try:
+                    # Find all links to group assignment pages
+                    link_elements = self.driver.find_elements(By.CSS_SELECTOR, "a[href*='/my-groups/'][href*='/recipient-assignment']")
+                    if link_elements:
+                        group_links = [link.get_attribute('href') for link in link_elements if link.get_attribute('href')]
+                        print(f"Found {len(group_links)} group assignment links")
+                    else:
+                        print("No group assignment links found")
+                except Exception as e:
+                    print(f"Error finding group links: {e}")
                 
-                # Common selectors for homework items
-                homework_selectors = [
-                    ".assignment",
-                    ".homework",
-                    ".task",
-                    ".activity",
-                    "[data-testid*='assignment']",
-                    "[data-testid*='homework']",
-                    ".homework-item",
-                    ".assignment-item"
-                ]
-                
-                for selector in homework_selectors:
+                # Visit each group and scrape assignments
+                for group_idx, group_url in enumerate(group_links[:5]):  # Limit to 5 groups
                     try:
-                        elements = self.driver.find_elements(By.CSS_SELECTOR, selector)
-                        if elements:
-                            homework_elements.extend(elements)
-                            break
-                    except:
-                        continue
-                
-                # If no specific homework elements found, look for general content areas
-                if not homework_elements:
-                    content_selectors = [
-                        ".content",
-                        ".main-content", 
-                        ".dashboard-content",
-                        "[role='main']",
-                        ".student-content"
-                    ]
-                    
-                    for selector in content_selectors:
-                        try:
-                            elements = self.driver.find_elements(By.CSS_SELECTOR, selector)
-                            homework_elements.extend(elements)
-                        except:
-                            continue
-                
-                # Parse homework from found elements
-                for element in homework_elements[:10]:  # Limit to first 10 items
-                    try:
-                        title_element = element.find_element(By.CSS_SELECTOR, "h1, h2, h3, h4, .title, .assignment-title, .homework-title")
-                        title = title_element.text.strip()
+                        print(f"\n--- Visiting group {group_idx + 1}: {group_url} ---")
+                        self.driver.get(group_url)
+                        time.sleep(3)
                         
-                        if not title:
-                            continue
-                        
-                        # Look for description
-                        description = ""
+                        # Save screenshot
                         try:
-                            desc_element = element.find_element(By.CSS_SELECTOR, ".description, .assignment-description, p, .content")
-                            description = desc_element.text.strip()
-                        except:
-                            description = "No description available"
-                        
-                        # Look for due date
-                        due_date = timezone.now() + timezone.timedelta(days=7)  # Default
-                        try:
-                            date_element = element.find_element(By.CSS_SELECTOR, ".due-date, .deadline, .date, time")
-                            date_text = date_element.text.strip()
-                            parsed_date = self.parse_date(date_text)
-                            if parsed_date:
-                                due_date = parsed_date
+                            screenshot_path = f"debug_eduka_group_{group_idx}_{self.user.id}.png"
+                            self.driver.save_screenshot(screenshot_path)
+                            print(f"Group {group_idx + 1} screenshot saved to: {screenshot_path}")
                         except:
                             pass
                         
-                        # Look for subject
-                        subject = "Eduka"
-                        try:
-                            subject_element = element.find_element(By.CSS_SELECTOR, ".subject, .course, .class")
-                            subject = subject_element.text.strip() or "Eduka"
-                        except:
-                            pass
+                        # Now look for assignments on this page
+                        self._extract_assignments_from_page(homework_list, group_url)
                         
-                        # Create homework entry
-                        homework_entry = {
-                            'title': title,
-                            'description': description,
-                            'due_date': due_date,
-                            'subject': subject,
-                            'url': self.driver.current_url,
-                            'site': 'eduka'
-                        }
-                        
-                        homework_list.append(homework_entry)
-                        
-                    except Exception as e:
-                        print(f"Error parsing homework element: {e}")
+                    except Exception as group_error:
+                        print(f"Error processing group {group_idx + 1}: {group_error}")
                         continue
-                
-                # If still no homework found, create a sample entry to indicate successful login
-                if not homework_list:
-                    homework_list = [{
-                        'title': 'Eduka Dashboard Access Verified',
-                        'description': 'Successfully logged in to Eduka using saved session. No pending homework found or homework section may have a different layout.',
-                        'due_date': timezone.now() + timezone.timedelta(days=1),
-                        'subject': 'System',
-                        'url': self.driver.current_url,
-                        'site': 'eduka'
-                    }]
                 
             except Exception as e:
                 print(f"Error navigating Eduka pages: {e}")
+                import traceback
+                print(traceback.format_exc())
                 # Still return at least one entry to show login was successful
                 homework_list = [{
                     'title': 'Eduka Login Verified',
@@ -694,7 +513,7 @@ class EdukaScraper(BaseScraper):
                     'url': self.auth_url,
                     'site': 'eduka'
                 }]
-            
+        
         except Exception as e:
             print(f"Error scraping eduka: {e}")
         finally:
@@ -708,6 +527,168 @@ class EdukaScraper(BaseScraper):
                 self.is_logged_in = False
         
         return homework_list
+    
+    def _extract_assignments_from_page(self, homework_list, page_url):
+        """Extract assignments from current Eduka page"""
+        # Look for homework/assignments content
+        # Based on the HTML structure: <div class="assignment-list__item">
+        # Structure contains:
+        # - .assignment__description-title: Title (e.g., "Trigonometrinių lygčių sprendimas")
+        # - .assignment__description-tasks-count: Task count (e.g., "15 užd.")
+        # - .assignment-list__deadline-label: Deadline (e.g., "Neribotas" or date)
+        # - .assignment-list__status-label: Status (e.g., "Nepradėta")
+        
+        homework_elements = []
+        
+        # Look for assignment list items with specific class
+        try:
+            assignment_items = self.driver.find_elements(By.CSS_SELECTOR, ".assignment-list__item")
+            if assignment_items:
+                homework_elements = assignment_items
+                print(f"Found {len(assignment_items)} assignment items with class 'assignment-list__item'")
+            else:
+                # Fallback: Look for assignment divs
+                assignment_divs = self.driver.find_elements(By.CSS_SELECTOR, ".assignment")
+                if assignment_divs:
+                    homework_elements = assignment_divs
+                    print(f"Found {len(assignment_divs)} assignment divs")
+                else:
+                    # Last fallback: Look for any content with assignment in class
+                    any_assignments = self.driver.find_elements(By.CSS_SELECTOR, "[class*='assignment']")
+                    homework_elements = any_assignments
+                    print(f"Found {len(any_assignments)} elements with 'assignment' in class")
+        except Exception as e:
+            print(f"Error finding assignment elements: {e}")
+            import traceback
+            print(traceback.format_exc())
+            return
+        
+        # Parse homework from found elements
+        print(f"Processing {len(homework_elements)} assignment elements on {page_url}")
+        for idx, element in enumerate(homework_elements[:20]):  # Limit to first 20 items
+            try:
+                # Extract title from .assignment__description-title
+                title = ""
+                try:
+                    title_elem = element.find_element(By.CSS_SELECTOR, ".assignment__description-title")
+                    title = title_elem.text.strip()
+                except:
+                    # Fallback: try other title selectors
+                    try:
+                        title_elem = element.find_element(By.CSS_SELECTOR, "h1, h2, h3, h4, .title, .assignment-title")
+                        title = title_elem.text.strip()
+                    except:
+                        pass
+                
+                if not title:
+                    print(f"Element {idx}: No title found, skipping")
+                    continue
+                
+                print(f"Element {idx}: Title='{title}'")
+                
+                # Extract task count from .assignment__description-tasks-count
+                task_count = ""
+                try:
+                    task_count_elem = element.find_element(By.CSS_SELECTOR, ".assignment__description-tasks-count")
+                    task_count = task_count_elem.text.strip()
+                    print(f"Element {idx}: Task count='{task_count}'")
+                except:
+                    pass
+                
+                # Extract deadline from .assignment-list__deadline-label
+                due_date_text = ""
+                try:
+                    deadline_elem = element.find_element(By.CSS_SELECTOR, ".assignment-list__deadline-label")
+                    due_date_text = deadline_elem.text.strip()
+                    print(f"Element {idx}: Deadline='{due_date_text}'")
+                except:
+                    # Fallback: try other deadline selectors
+                    try:
+                        deadline_elem = element.find_element(By.CSS_SELECTOR, ".due-date, .deadline, .date")
+                        due_date_text = deadline_elem.text.strip()
+                    except:
+                        pass
+                
+                # Extract status from .assignment-list__status-label
+                status = ""
+                is_completed = False
+                try:
+                    status_elem = element.find_element(By.CSS_SELECTOR, ".assignment-list__status-label")
+                    status = status_elem.text.strip()
+                    print(f"Element {idx}: Status='{status}'")
+                    # Check if status indicates completion
+                    if status and any(word in status.lower() for word in ['baig', 'atlik', 'complete', 'done', 'finished']):
+                        is_completed = True
+                        print(f"Element {idx}: Assignment is completed, skipping")
+                        continue  # Skip completed assignments
+                except:
+                    pass
+                
+                # Parse due date
+                due_date = None
+                # Only create a due date if it's NOT "Neribotas" (unlimited)
+                if due_date_text and due_date_text.lower() not in ['neribotas', 'unlimited', 'no deadline', '-', 'none']:
+                    due_date = self.parse_date(due_date_text)
+                    if due_date:
+                        print(f"Element {idx}: Parsed due date: {due_date}")
+                    else:
+                        print(f"Element {idx}: Could not parse due date '{due_date_text}'")
+                else:
+                    print(f"Element {idx}: No deadline (unlimited) - will not set due date")
+                
+                # If no due date was set, leave it as None (don't default to 30 days)
+                
+                # Build description - ONLY include task count (Užduočių skaičius)
+                description = ""
+                if task_count:
+                    description = f"Užduočių skaičius: {task_count}"
+                else:
+                    description = "Užduotis iš Eduka platformos"
+                
+                # Do NOT add status or deadline to description
+                # Do NOT add additional element text
+                
+                # Try to extract subject from page context (group card or page title)
+                subject = "Eduka"
+                try:
+                    # Look for group-card__description-line elements (usually contains subject name)
+                    # Structure: Line 0: Teacher, Line 1: Subject, Line 2: School
+                    group_desc_lines = self.driver.find_elements(By.CSS_SELECTOR, ".group-card__description-line")
+                    if len(group_desc_lines) >= 2:
+                        subject_text = group_desc_lines[1].text.strip()
+                        if subject_text and len(subject_text) < 100 and len(subject_text) > 2:
+                            subject = subject_text
+                            print(f"Element {idx}: Extracted subject from group card: '{subject}'")
+                    else:
+                        # Fallback: try other subject selectors
+                        subject_elems = self.driver.find_elements(By.CSS_SELECTOR, ".group-name, .course-name, h1, h2")
+                        if subject_elems and len(subject_elems) > 0:
+                            subject_text = subject_elems[0].text.strip()
+                            if subject_text and len(subject_text) < 100 and len(subject_text) > 2:
+                                subject = subject_text
+                                print(f"Element {idx}: Extracted subject from fallback: '{subject}'")
+                except Exception as subj_error:
+                    print(f"Element {idx}: Could not extract subject: {subj_error}")
+                    pass
+                
+                # Create homework entry
+                homework_entry = {
+                    'title': title[:200],
+                    'description': description[:1000],
+                    'due_date': due_date,
+                    'subject': subject[:100],
+                    'url': page_url,  # Use the group page URL
+                    'site': 'eduka'
+                }
+                
+                homework_list.append(homework_entry)
+                print(f"Element {idx}: ✓ Added homework - {title}")
+                
+            except Exception as e:
+                print(f"Element {idx}: ✗ Error parsing assignment element: {e}")
+                import traceback
+                print(traceback.format_exc())
+                continue
 
 class HomeworkScrapingService:
     """Main service for coordinating homework scraping"""

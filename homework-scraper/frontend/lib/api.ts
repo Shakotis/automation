@@ -78,7 +78,10 @@ async function apiCall<T>(
     return response.json();
   } catch (error) {
     // Only log unexpected errors (not auth failures or network issues on auth endpoints)
-    const isAuthEndpoint = endpoint.includes('/auth/user') || endpoint.includes('/auth/credentials');
+    const isAuthEndpoint = endpoint.includes('/auth/user') || 
+                           endpoint.includes('/auth/credentials') ||
+                           endpoint.includes('/auth/google/login') ||
+                           endpoint.includes('/auth/logout');
     const isAuthError = error instanceof Error && (
       error.message.includes('401') || 
       error.message.includes('User not authenticated') ||
@@ -86,8 +89,11 @@ async function apiCall<T>(
     );
     const isNetworkError = error instanceof TypeError && error.message === 'Failed to fetch';
     
-    // Don't log expected auth failures or network errors on auth check endpoints
-    if (!isAuthEndpoint || (!isAuthError && !isNetworkError)) {
+    // Completely silent for auth endpoints with network errors or auth errors
+    const shouldBeSilent = isAuthEndpoint && (isAuthError || isNetworkError);
+    
+    // Log only if it's not a silent case
+    if (!shouldBeSilent) {
       if (error instanceof Error) {
         console.error('[API] Error:', error.message);
       }
@@ -100,19 +106,19 @@ async function apiCall<T>(
 // Authentication API
 export const authAPI = {
   async getGoogleAuthUrl(): Promise<{ authorization_url: string }> {
-    return apiCall('/auth/google/login/');
+    return apiCall('/auth/google/login');
   },
 
   async handleGoogleCallback(code: string, state: string): Promise<{ user: UserProfile }> {
-    return apiCall(`/auth/google/callback/?code=${code}&state=${state}`);
+    return apiCall(`/auth/google/callback?code=${code}&state=${state}`);
   },
 
   async logout(): Promise<{ message: string }> {
-    return apiCall('/auth/logout/', { method: 'POST' });
+    return apiCall('/auth/logout', { method: 'POST' });
   },
 
   async getUserProfile(): Promise<{ user: UserProfile }> {
-    return apiCall('/auth/user/');
+    return apiCall('/auth/user');
   },
 
   // Credential management
@@ -122,28 +128,28 @@ export const authAPI = {
     password: string;
     additional_data?: any;
   }): Promise<{ message: string; site: string; username: string; is_verified: boolean }> {
-    return apiCall('/auth/credentials/', {
+    return apiCall('/auth/credentials', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
   async getCredentials(): Promise<{ credentials: Record<string, any> }> {
-    return apiCall('/auth/credentials/');
+    return apiCall('/auth/credentials');
   },
 
   async verifyCredentials(data: {
     site: string;
     url?: string;
   }): Promise<{ success: boolean; message: string; site: string; verified: boolean }> {
-    return apiCall('/auth/verify-credentials/', {
+    return apiCall('/auth/verify-credentials', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
   async deleteCredentials(site: string): Promise<{ message: string; site: string }> {
-    return apiCall('/auth/credentials/', {
+    return apiCall('/auth/credentials', {
       method: 'DELETE',
       body: JSON.stringify({ site }),
     });
@@ -151,11 +157,11 @@ export const authAPI = {
 
   // Site selection
   async getAvailableSites(): Promise<{ available_sites: Array<{ id: string; name: string; description: string }> }> {
-    return apiCall('/auth/sites/');
+    return apiCall('/auth/sites');
   },
 
   async saveSiteSelections(selectedSites: string[]): Promise<{ message: string; selected_sites: string[] }> {
-    return apiCall('/auth/sites/', {
+    return apiCall('/auth/sites', {
       method: 'POST',
       body: JSON.stringify({ selected_sites: selectedSites }),
     });
@@ -178,7 +184,7 @@ export const scraperAPI = {
     if (params.search) searchParams.append('search', params.search);
 
     const query = searchParams.toString();
-    return apiCall(`/scraper/homework/${query ? `?${query}` : ''}`);
+    return apiCall(`/scraper/homework${query ? `?${query}` : ''}`);
   },
 
   async scrapeHomework(): Promise<{ 
@@ -187,15 +193,15 @@ export const scraperAPI = {
     synced_count?: number;
     sync_errors?: string[];
   }> {
-    return apiCall('/scraper/homework/scrape/', { method: 'POST' });
+    return apiCall('/scraper/homework/scrape', { method: 'POST' });
   },
 
   async getPreferences(): Promise<UserPreferences> {
-    return apiCall('/scraper/preferences/');
+    return apiCall('/scraper/preferences');
   },
 
   async updatePreferences(preferences: Partial<UserPreferences>): Promise<UserPreferences> {
-    return apiCall('/scraper/preferences/', {
+    return apiCall('/scraper/preferences', {
       method: 'PUT',
       body: JSON.stringify(preferences),
     });
@@ -205,18 +211,18 @@ export const scraperAPI = {
 // Google Tasks API
 export const tasksAPI = {
   async syncHomeworkToTasks(homeworkIds?: number[]): Promise<SyncResult> {
-    return apiCall('/tasks/sync/', {
+    return apiCall('/tasks/sync', {
       method: 'POST',
       body: JSON.stringify({ homework_ids: homeworkIds }),
     });
   },
 
   async getTaskLists(): Promise<{ task_lists: any[] }> {
-    return apiCall('/tasks/lists/');
+    return apiCall('/tasks/lists');
   },
 
   async getTasks(listId: string): Promise<{ tasks: any[] }> {
-    return apiCall(`/tasks/lists/${listId}/tasks/`);
+    return apiCall(`/tasks/lists/${listId}/tasks`);
   },
 };
 

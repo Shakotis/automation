@@ -23,6 +23,8 @@ interface HomeworkItem {
   synced_to_google_tasks: boolean;
   scraped_at: string;
   google_task_id: string;
+  completed: boolean;
+  completed_at: string | null;
 }
 
 export default function HomeworkPage() {
@@ -51,6 +53,8 @@ export default function HomeworkPage() {
       synced_to_google_tasks: true,
       scraped_at: new Date().toISOString(),
       google_task_id: "task_123",
+      completed: false,
+      completed_at: null,
     },
     {
       id: 2,
@@ -63,6 +67,8 @@ export default function HomeworkPage() {
       synced_to_google_tasks: false,
       scraped_at: new Date().toISOString(),
       google_task_id: "",
+      completed: true,
+      completed_at: "2025-10-01T08:00:00Z",
     },
     {
       id: 3,
@@ -75,6 +81,8 @@ export default function HomeworkPage() {
       synced_to_google_tasks: true,
       scraped_at: new Date().toISOString(),
       google_task_id: "task_456",
+      completed: false,
+      completed_at: null,
     },
     {
       id: 4,
@@ -87,6 +95,8 @@ export default function HomeworkPage() {
       synced_to_google_tasks: false,
       scraped_at: new Date().toISOString(),
       google_task_id: "",
+      completed: false,
+      completed_at: null,
     },
   ];
 
@@ -115,9 +125,23 @@ export default function HomeworkPage() {
       if (searchTerm) {
         filteredHomework = filteredHomework.filter(hw => 
           hw.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          hw.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
           hw.subject.toLowerCase().includes(searchTerm.toLowerCase())
         );
       }
+      
+      // Sort homework: incomplete first, completed last
+      filteredHomework.sort((a, b) => {
+        // First sort by completion status (incomplete first)
+        if (a.completed !== b.completed) {
+          return a.completed ? 1 : -1;
+        }
+        // Then sort by due date
+        if (a.due_date && b.due_date) {
+          return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+        }
+        return 0;
+      });
       
       setHomework(filteredHomework);
       setTotalPages(Math.ceil(filteredHomework.length / 10));
@@ -247,7 +271,10 @@ export default function HomeworkPage() {
       ) : (
         <div className="space-y-4">
           {homework.map((item) => (
-            <Card key={item.id}>
+            <Card 
+              key={item.id}
+              className={item.completed ? "opacity-60 bg-default-100" : ""}
+            >
               <CardBody>
                 <div className="flex justify-between items-start">
                   <div 
@@ -255,7 +282,9 @@ export default function HomeworkPage() {
                     onClick={() => {setSelectedHomework(item); onOpen();}}
                   >
                     <div className="flex items-center gap-2 mb-2">
-                      <h3 className="font-semibold text-lg">{item.title}</h3>
+                      <h3 className={`font-semibold text-lg ${item.completed ? 'line-through text-default-400' : ''}`}>
+                        {item.title}
+                      </h3>
                       <Chip
                         size="sm"
                         color={getSiteColor(item.site)}
@@ -263,25 +292,38 @@ export default function HomeworkPage() {
                       >
                         {item.site}
                       </Chip>
-                      {item.synced_to_google_tasks ? (
-                        <Chip size="sm" color="success" variant="flat">
-                          ✓ Synced
+                      {item.completed ? (
+                        <Chip size="sm" color="default" variant="flat">
+                          ✓ Completed
                         </Chip>
                       ) : (
-                        <Chip size="sm" color="warning" variant="flat">
-                          Not Synced
-                        </Chip>
+                        <>
+                          {item.synced_to_google_tasks ? (
+                            <Chip size="sm" color="success" variant="flat">
+                              ✓ Synced
+                            </Chip>
+                          ) : (
+                            <Chip size="sm" color="warning" variant="flat">
+                              Not Synced
+                            </Chip>
+                          )}
+                        </>
                       )}
                     </div>
                     
-                    <p className="text-default-600 mb-3 line-clamp-2">
+                    <p className={`text-default-600 mb-3 line-clamp-2 ${item.completed ? 'text-default-400' : ''}`}>
                       {item.description}
                     </p>
                     
                     <div className="flex items-center gap-6 text-sm text-default-500">
                       <span>📚 {item.subject}</span>
                       <span>📅 {formatDate(item.due_date)}</span>
-                      <span>🕒 Scraped {formatDate(item.scraped_at)}</span>
+                      {item.completed && item.completed_at && (
+                        <span>✓ Completed {formatDate(item.completed_at)}</span>
+                      )}
+                      {!item.completed && (
+                        <span>🕒 Scraped {formatDate(item.scraped_at)}</span>
+                      )}
                     </div>
                   </div>
                   

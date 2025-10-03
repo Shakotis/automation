@@ -13,6 +13,7 @@ import { Button } from "@heroui/button";
 import { Link } from "@heroui/link";
 import { Avatar } from "@heroui/avatar";
 import { Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from "@heroui/dropdown";
+import { addToast } from "@heroui/toast";
 import { link as linkStyles } from "@heroui/theme";
 import NextLink from "next/link";
 import clsx from "clsx";
@@ -60,10 +61,16 @@ export const Navbar = () => {
     try {
       await authAPI.logout();
       setUser(null);
+      addToast({
+        title: 'Signed Out',
+        description: 'You have been successfully signed out',
+        color: 'success',
+      });
       // Redirect to home page
       window.location.href = '/';
     } catch (error) {
       console.error('Logout failed:', error);
+      // Silently handle logout errors - user will be redirected anyway
     }
   };
 
@@ -72,8 +79,12 @@ export const Navbar = () => {
       const data = await authAPI.getGoogleAuthUrl();
       window.location.href = data.authorization_url;
     } catch (error) {
-      console.error('Google sign-in error:', error);
-      alert('Failed to initiate Google sign-in. Please ensure the backend is running.');
+      // Silently handle - toast will show the error
+      addToast({
+        title: 'Connection Error',
+        description: 'Cannot connect to backend server. Please ensure the backend is running.',
+        color: 'danger',
+      });
     }
   };
 
@@ -122,13 +133,6 @@ export const Navbar = () => {
         className="hidden sm:flex basis-1/5 sm:basis-full"
         justify="end"
       >
-        <NavbarItem className="hidden sm:flex gap-2">
-          <Link isExternal aria-label="Github" href={siteConfig.links.github}>
-            <GithubIcon className="text-default-500" />
-          </Link>
-          <ThemeSwitch />
-        </NavbarItem>
-        
         {loading ? (
           <NavbarItem className="hidden md:flex">
             <div className="w-8 h-8 rounded-full bg-default-200 animate-pulse" />
@@ -155,13 +159,10 @@ export const Navbar = () => {
                   <p className="font-semibold">{getUserDisplayName()}</p>
                 </DropdownItem>
                 <DropdownItem key="dashboard" as={NextLink} href="/dashboard">
-                  Dashboard
+                  Homework
                 </DropdownItem>
                 <DropdownItem key="settings" as={NextLink} href="/settings">
                   Settings
-                </DropdownItem>
-                <DropdownItem key="homework" as={NextLink} href="/homework">
-                  Homework
                 </DropdownItem>
                 <DropdownItem 
                   key="logout" 
@@ -187,7 +188,6 @@ export const Navbar = () => {
       </NavbarContent>
 
       <NavbarContent className="sm:hidden basis-1 pl-4" justify="end">
-        <ThemeSwitch />
         <NavbarMenuToggle />
       </NavbarContent>
 
@@ -229,17 +229,12 @@ export const Navbar = () => {
             <>
               <NavbarMenuItem>
                 <NextLink className="w-full text-foreground" href="/dashboard">
-                  Dashboard
+                  Homework
                 </NextLink>
               </NavbarMenuItem>
               <NavbarMenuItem>
                 <NextLink className="w-full text-foreground" href="/settings">
                   Settings
-                </NextLink>
-              </NavbarMenuItem>
-              <NavbarMenuItem>
-                <NextLink className="w-full text-foreground" href="/homework">
-                  Homework
                 </NextLink>
               </NavbarMenuItem>
               <NavbarMenuItem>

@@ -5,26 +5,30 @@ export const siteConfig = {
   description: "Automatically scrape homework from Lithuanian educational websites and sync to Google Tasks.",
   navItems: [
     {
-      label: "Dashboard",
+      label: "Homework",
       href: "/dashboard",
     },
     {
-      label: "Homework",
-      href: "/homework",
+      label: "Exams",
+      href: "/exams",
     },
     {
       label: "Settings",
       href: "/settings",
     },
+    {
+      label: "How to Use",
+      href: "/how-to-use",
+    },
   ],
   navMenuItems: [
     {
-      label: "Dashboard",
+      label: "Homework",
       href: "/dashboard",
     },
     {
-      label: "Homework",
-      href: "/homework",
+      label: "Exams",
+      href: "/exams",
     },
     {
       label: "Settings",
@@ -37,6 +41,10 @@ export const siteConfig = {
     {
       label: "Logout",
       href: "/logout",
+    },
+    {
+      label: "How to Use",
+      href: "/how-to-use",
     },
   ],
   links: {

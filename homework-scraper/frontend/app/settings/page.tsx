@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Button } from "@heroui/button";
+import { addToast } from "@heroui/toast";
 import { Switch } from "@heroui/switch";
 import { Input } from "@heroui/input";
 import { Divider } from "@heroui/divider";
@@ -14,7 +15,6 @@ import { title } from "@/components/primitives";
 interface UserPreferences {
   enable_manodienynas: boolean;
   enable_eduka: boolean;
-  scraping_frequency_hours: number;
   last_scraped_manodienynas: string | null;
   last_scraped_eduka: string | null;
   google_tasks_title_format: 'title' | 'subject';
@@ -43,7 +43,6 @@ export default function SettingsPage() {
   const [preferences, setPreferences] = useState<UserPreferences>({
     enable_manodienynas: true,
     enable_eduka: true,
-    scraping_frequency_hours: 6,
     last_scraped_manodienynas: null,
     last_scraped_eduka: null,
     google_tasks_title_format: 'title',
@@ -68,6 +67,21 @@ export default function SettingsPage() {
   const [savingCredential, setSavingCredential] = useState<string | null>(null);
   const [showCredentialsPrompt, setShowCredentialsPrompt] = useState(false);
 
+  const requireAuth = (action: string) => {
+    if (!userProfile) {
+      addToast({
+        title: 'Authentication Required',
+        description: `Please sign in with Google to ${action}`,
+        color: 'danger',
+      });
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 2000);
+      return false;
+    }
+    return true;
+  };
+
   useEffect(() => {
     fetchUserData();
     fetchCredentials();
@@ -82,7 +96,7 @@ export default function SettingsPage() {
   const fetchUserData = async () => {
     try {
       // Try to fetch real user profile from the API
-      const response = await fetch('/api/auth/user/', {
+      const response = await fetch('/api/auth/user', {
         credentials: 'include',
       });
       
@@ -91,7 +105,7 @@ export default function SettingsPage() {
         setUserProfile(data.user);
         
         // Fetch preferences
-        const prefResponse = await fetch('/api/scraper/preferences/', {
+        const prefResponse = await fetch('/api/scraper/preferences', {
           credentials: 'include',
         });
         
@@ -100,35 +114,33 @@ export default function SettingsPage() {
           setPreferences({
             enable_manodienynas: prefData.enable_manodienynas,
             enable_eduka: prefData.enable_eduka,
-            scraping_frequency_hours: prefData.scraping_frequency_hours,
             last_scraped_manodienynas: prefData.last_scraped_manodienynas,
             last_scraped_eduka: prefData.last_scraped_eduka,
             google_tasks_title_format: prefData.google_tasks_title_format || 'title',
           });
         }
       } else if (response.status === 401) {
-        // User is not authenticated
-        setUserProfile(null);
-        console.log('User not authenticated');
-      } else {
-        // Other error, fall back to mock data
-        setUserProfile({
-          id: 1,
-          email: "user@example.com",
-          first_name: "Vardas",
-          last_name: "Pavardė",
-          has_google_oauth: false,
+        // User is not authenticated - show toast and redirect
+        addToast({
+          title: 'Authentication Required',
+          description: 'Please sign in with Google to access settings',
+          color: 'danger',
         });
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 2000);
+        return;
+      } else {
+        // Other error - silently handle
+        console.warn('Failed to fetch user data:', response.status);
       }
     } catch (error) {
       console.error('Error fetching user data:', error);
-      // Network error, show fallback
-      setUserProfile({
-        id: 1,
-        email: "user@example.com",
-        first_name: "Vardas",
-        last_name: "Pavardė",
-        has_google_oauth: false,
+      // Network error
+      addToast({
+        title: 'Connection Error',
+        description: 'Failed to connect to backend server',
+        color: 'danger',
       });
     } finally {
       setLoading(false);
@@ -137,7 +149,7 @@ export default function SettingsPage() {
 
   const fetchCredentials = async () => {
     try {
-      const response = await fetch('/api/auth/credentials/', {
+      const response = await fetch('/api/auth/credentials', {
         credentials: 'include',
       });
       
@@ -153,7 +165,7 @@ export default function SettingsPage() {
   const handleSaveCredential = async (site: string, username: string, password: string) => {
     setSavingCredential(site);
     try {
-      const response = await fetch('/api/auth/credentials/', {
+      const response = await fetch('/api/auth/credentials', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -169,7 +181,11 @@ export default function SettingsPage() {
       if (response.ok) {
         await fetchCredentials(); // Refresh credentials
         setCredentialForm({ site: '', username: '', password: '', showPassword: false });
-        alert(`✅ Credentials saved successfully for ${site}!`);
+        addToast({
+          title: 'Credentials Saved',
+          description: `Successfully saved for ${site}`,
+          color: 'success',
+        });
         
         // Automatically verify the credentials
         await handleVerifyCredential(site);
@@ -184,7 +200,7 @@ export default function SettingsPage() {
             errorMessage = 'Please sign in with Google first to save credentials';
             // Optionally redirect to login
             setTimeout(() => {
-              window.location.href = '/auth/google';
+              window.location.href = '/';
             }, 2000);
           }
         } catch (e) {
@@ -192,11 +208,19 @@ export default function SettingsPage() {
           errorMessage = response.statusText || errorMessage;
         }
         console.error('Error saving credential:', errorMessage);
-        alert(`Error saving credentials: ${errorMessage}`);
+        addToast({
+          title: 'Save Failed',
+          description: errorMessage,
+          color: 'danger',
+        });
       }
     } catch (error) {
       console.error('Error saving credential:', error);
-      alert('Network error: Could not save credentials. Please check if the backend server is running.');
+      addToast({
+        title: 'Network Error',
+        description: 'Could not save credentials. Please check if the backend server is running.',
+        color: 'danger',
+      });
     } finally {
       setSavingCredential(null);
     }
@@ -204,44 +228,69 @@ export default function SettingsPage() {
 
   const handleVerifyCredential = async (site: string) => {
     setVerifying(site);
-    try {
-      const response = await fetch('/api/auth/verify-credentials/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ site }),
-      });
+    
+    const verifyPromise = (async () => {
+      try {
+        const response = await fetch('/api/auth/verify-credentials', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ site }),
+        });
 
-      if (response.ok) {
-        const data = await response.json();
-        await fetchCredentials(); // Refresh to get updated verification status
-        
-        if (data.success) {
-          alert(`✅ Credentials verified successfully for ${site}!`);
+        if (response.ok) {
+          const data = await response.json();
+          await fetchCredentials(); // Refresh to get updated verification status
+          
+          if (data.success) {
+            return { success: true, message: `Credentials verified successfully for ${site}` };
+          } else {
+            throw new Error(data.message);
+          }
         } else {
-          alert(`❌ Verification failed: ${data.message}`);
+          let errorMessage = 'Verification failed';
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorMessage;
+          } catch (e) {
+            errorMessage = response.statusText || errorMessage;
+          }
+          throw new Error(errorMessage);
         }
-        return data;
-      } else {
-        let errorMessage = 'Verification failed';
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.error || errorMessage;
-        } catch (e) {
-          errorMessage = response.statusText || errorMessage;
-        }
-        alert(`❌ Verification failed: ${errorMessage}`);
-        return { success: false, message: errorMessage };
+      } catch (error) {
+        console.error('Error verifying credential:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Network error during verification';
+        throw new Error(errorMessage);
+      } finally {
+        setVerifying(null);
       }
+    })();
+
+    addToast({
+      title: 'Verifying',
+      description: `Checking credentials for ${site}...`,
+      color: 'warning',
+      promise: verifyPromise.then(
+        (result) => ({
+          title: 'Verified',
+          description: result.message,
+          color: 'success' as const,
+        }),
+        (error) => ({
+          title: 'Verification Failed',
+          description: error.message,
+          color: 'danger' as const,
+        })
+      ),
+    });
+
+    try {
+      const result = await verifyPromise;
+      return { success: true, message: result.message };
     } catch (error) {
-      console.error('Error verifying credential:', error);
-      const errorMessage = 'Network error during verification';
-      alert(`❌ ${errorMessage}. Please check if the backend server is running.`);
-      return { success: false, message: errorMessage };
-    } finally {
-      setVerifying(null);
+      return { success: false, message: error instanceof Error ? error.message : 'Unknown error' };
     }
   };
 
@@ -255,20 +304,31 @@ export default function SettingsPage() {
         body: JSON.stringify({
           enable_manodienynas: preferences.enable_manodienynas,
           enable_eduka: preferences.enable_eduka,
-          scraping_frequency_hours: preferences.scraping_frequency_hours,
           google_tasks_title_format: preferences.google_tasks_title_format,
         }),
       });
       
       if (response.ok) {
-        alert('✅ Preferences saved successfully!');
+        addToast({
+          title: "Settings Saved",
+          description: "Your preferences have been updated successfully!",
+          color: "success",
+        });
       } else {
         const errorData = await response.json();
-        alert(`❌ Failed to save preferences: ${errorData.error || 'Unknown error'}`);
+        addToast({
+          title: "Save Failed",
+          description: errorData.error || 'Unknown error occurred',
+          color: "danger",
+        });
       }
     } catch (error) {
       console.error('Error saving preferences:', error);
-      alert('❌ Network error: Could not save preferences');
+      addToast({
+        title: "Network Error",
+        description: "Could not save preferences. Please try again.",
+        color: "danger",
+      });
     } finally {
       setSaving(false);
     }
@@ -357,9 +417,12 @@ export default function SettingsPage() {
               <Button
                 size="sm"
                 variant="bordered"
-                onClick={() => handleVerifyCredential(site)}
+                onClick={() => {
+                  if (!requireAuth('verify credentials')) return;
+                  handleVerifyCredential(site);
+                }}
                 isLoading={verifying === site}
-                disabled={verifying === site || !userProfile}
+                disabled={verifying === site}
               >
                 {verifying === site ? 'Verifying...' : 'Verify'}
               </Button>
@@ -368,8 +431,10 @@ export default function SettingsPage() {
               size="sm"
               color={credential ? 'default' : 'primary'}
               variant={credential ? 'bordered' : 'solid'}
-              onClick={toggleForm}
-              isDisabled={!userProfile}
+              onClick={() => {
+                if (!requireAuth('manage credentials')) return;
+                toggleForm();
+              }}
             >
               {credential ? 'Edit' : 'Add Credentials'}
             </Button>
@@ -623,29 +688,6 @@ export default function SettingsPage() {
                   />
                 </div>
               )}
-
-              <Divider />
-
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Scraping Frequency (hours)
-                </label>
-                <Input
-                  type="number"
-                  min="1"
-                  max="24"
-                  value={preferences.scraping_frequency_hours.toString()}
-                  onChange={(e) => 
-                    setPreferences(prev => ({ 
-                      ...prev, 
-                      scraping_frequency_hours: parseInt(e.target.value) || 6 
-                    }))
-                  }
-                  variant="bordered"
-                  description="How often to automatically scrape for new homework (1-24 hours)"
-                  className="max-w-xs"
-                />
-              </div>
             </div>
           </div>
         </CardBody>
@@ -731,7 +773,10 @@ export default function SettingsPage() {
       <div className="flex gap-3">
         <Button
           color="primary"
-          onPress={handleSavePreferences}
+          onPress={() => {
+            if (!requireAuth('save settings')) return;
+            handleSavePreferences();
+          }}
           isLoading={saving}
           disabled={saving}
         >
@@ -739,7 +784,10 @@ export default function SettingsPage() {
         </Button>
         <Button
           variant="bordered"
-          onPress={fetchUserData}
+          onPress={() => {
+            if (!requireAuth('reset settings')) return;
+            fetchUserData();
+          }}
           disabled={saving}
         >
           Reset to Default

@@ -26,16 +26,22 @@ class GoogleTasksService:
         """Get user's Google OAuth credentials"""
         try:
             oauth_record = GoogleOAuth.objects.get(user=self.user)
+            
+            # Set expiry from database if available
+            expiry = oauth_record.token_expiry if hasattr(oauth_record, 'token_expiry') else None
+            
             credentials = Credentials(
                 token=oauth_record.access_token,
                 refresh_token=oauth_record.refresh_token,
                 token_uri='https://oauth2.googleapis.com/token',
                 client_id=settings.GOOGLE_OAUTH2_CLIENT_ID,
-                client_secret=settings.GOOGLE_OAUTH2_CLIENT_SECRET
+                client_secret=settings.GOOGLE_OAUTH2_CLIENT_SECRET,
+                expiry=expiry
             )
             
-            # Check if token is expired and refresh if needed
-            if credentials.expired and credentials.refresh_token:
+            # Always try to refresh if we have a refresh token
+            # This prevents the "<!DOCTYPE" HTML error
+            if credentials.refresh_token:
                 try:
                     from google.auth.transport.requests import Request
                     credentials.refresh(Request())
@@ -49,16 +55,81 @@ class GoogleTasksService:
                     logger.info(f"Refreshed OAuth token for user {self.user.username}")
                 except Exception as refresh_error:
                     logger.error(f"Failed to refresh OAuth token: {str(refresh_error)}")
-                    return None
+                    raise Exception("Google authentication has expired. Please reconnect your Google account in settings.")
             
             return credentials
         except GoogleOAuth.DoesNotExist:
-            return None
+            raise Exception("Google account not connected. Please connect your Google account in settings.")
     
     def get_or_create_homework_tasklist(self):
         """Get or create the 'Homework' task list"""
         if not self.service:
-            raise Exception("Google Tasks service not initialized")
+            raise Exception("Google Tasks service not initialized. Please connect your Google account.")
+        
+        try:
+            # Try to find existing "Homework" task list
+            task_lists_result = self.service.tasklists().list().execute()
+            task_lists = task_lists_result.get('items', [])
+            
+            for task_list in task_lists:
+                if task_list['title'].lower() == 'homework':
+                    return task_list['id']
+            
+            # Create new "Homework" task list if not found
+            new_list = {
+                'title': 'Homework'
+            }
+            result = self.service.tasklists().insert(body=new_list).execute()
+            return result['id']
+            
+        except json.JSONDecodeError as json_error:
+            # This means the API returned HTML instead of JSON (usually expired auth)
+            logger.error(f"Google API returned non-JSON response: {str(json_error)}")
+            raise Exception("Google authentication has expired. Please reconnect your Google account in settings to continue syncing tasks.")
+        except Exception as e:
+            error_msg = str(e)
+            # Check for various authentication error patterns
+            if any(keyword in error_msg.lower() for keyword in ['invalid_grant', 'token_expired', 'unauthorized', '401']):
+                raise Exception("Google authentication expired. Please reconnect your Google account in settings.")
+            elif '<!' in error_msg or 'html' in error_msg.lower() or 'doctype' in error_msg.lower():
+                raise Exception("Google API returned an error page. Your authentication has expired. Please reconnect your Google account in settings.")
+            else:
+                raise Exception(f"Failed to access Google Tasks: {error_msg}")
+    
+    def get_or_create_exams_tasklist(self):
+        """Get or create the 'Exams' task list"""
+        if not self.service:
+            raise Exception("Google Tasks service not initialized. Please connect your Google account.")
+        
+        try:
+            # Try to find existing "Exams" task list
+            task_lists_result = self.service.tasklists().list().execute()
+            task_lists = task_lists_result.get('items', [])
+            
+            for task_list in task_lists:
+                if task_list['title'].lower() == 'exams':
+                    return task_list['id']
+            
+            # Create new "Exams" task list if not found
+            new_list = {
+                'title': 'Exams'
+            }
+            result = self.service.tasklists().insert(body=new_list).execute()
+            return result['id']
+            
+        except json.JSONDecodeError as json_error:
+            # This means the API returned HTML instead of JSON (usually expired auth)
+            logger.error(f"Google API returned non-JSON response: {str(json_error)}")
+            raise Exception("Google authentication has expired. Please reconnect your Google account in settings to continue syncing tasks.")
+        except Exception as e:
+            error_msg = str(e)
+            # Check for various authentication error patterns
+            if any(keyword in error_msg.lower() for keyword in ['invalid_grant', 'token_expired', 'unauthorized', '401']):
+                raise Exception("Google authentication expired. Please reconnect your Google account in settings.")
+            elif '<!' in error_msg or 'html' in error_msg.lower() or 'doctype' in error_msg.lower():
+                raise Exception("Google API returned an error page. Your authentication has expired. Please reconnect your Google account in settings.")
+            else:
+                raise Exception(f"Failed to access Google Tasks: {error_msg}")
         
         # Check if we already have the Homework task list stored
         try:
@@ -118,10 +189,44 @@ class GoogleTasksService:
         # Set task title based on user preference
         if title_format == 'subject' and homework.subject:
             task_title = homework.subject
-            task_notes = f"Task: {homework.title}\n\nDescription: {homework.description}\n\nSource: {homework.get_site_display()}\nURL: {homework.url}"
+            task_notes = homework.description
         else:
             task_title = homework.title
-            task_notes = f"Subject: {homework.subject}\n\nDescription: {homework.description}\n\nSource: {homework.get_site_display()}\nURL: {homework.url}"
+            task_notes = homework.description
+        
+        # Check if task already exists with same title and due date
+        try:
+            existing_tasks = self.service.tasks().list(
+                tasklist=task_list_id,
+                showCompleted=False,
+                maxResults=100
+            ).execute()
+            
+            tasks = existing_tasks.get('items', [])
+            
+            # Format homework due date for comparison (date only, no time)
+            homework_due_date = None
+            if homework.due_date:
+                homework_due_date = homework.due_date.strftime('%Y-%m-%d')
+            
+            for task in tasks:
+                # Check if title matches
+                if task.get('title') == task_title:
+                    # Get task due date (date only, no time)
+                    task_due_date = None
+                    if task.get('due'):
+                        task_due_date = task['due'][:10]  # Extract YYYY-MM-DD
+                    
+                    # If both have same title and same due date (or both have no due date), it's a duplicate
+                    if task_due_date == homework_due_date:
+                        logger.info(f"Task already exists: {task_title} (Due: {homework_due_date})")
+                        # Update homework record with existing task ID
+                        homework.google_task_id = task['id']
+                        homework.synced_to_google_tasks = True
+                        homework.save()
+                        return task['id']
+        except Exception as e:
+            logger.warning(f"Error checking for existing tasks: {str(e)}. Creating new task anyway.")
         
         # Prepare task data
         task_body = {
@@ -150,7 +255,7 @@ class GoogleTasksService:
     def sync_homework_to_tasks(self, homework_queryset=None):
         """Sync scraped homework to Google Tasks"""
         if not self.service:
-            raise Exception("Google Tasks service not initialized")
+            raise Exception("Google Tasks service not initialized. Please connect your Google account in settings.")
         
         if homework_queryset is None:
             # Get all unsynced homework for this user
@@ -167,7 +272,16 @@ class GoogleTasksService:
                 self.create_task_from_homework(homework)
                 synced_count += 1
             except Exception as e:
-                errors.append(f"Error syncing {homework.title}: {str(e)}")
+                error_msg = str(e)
+                # Provide user-friendly error messages
+                if 'invalid_grant' in error_msg.lower():
+                    errors.append("Google authentication expired. Please reconnect your account.")
+                    break  # Stop trying if auth is expired
+                elif '<!' in error_msg or 'html' in error_msg.lower() or 'DOCTYPE' in error_msg:
+                    errors.append("Google API error (authentication may have expired). Please reconnect your account.")
+                    break  # Stop trying if auth is expired
+                else:
+                    errors.append(f"Error syncing {homework.title}: {error_msg}")
         
         return {
             'synced_count': synced_count,
@@ -189,6 +303,108 @@ class GoogleTasksService:
         
         results = self.service.tasks().list(tasklist=task_list_id).execute()
         return results.get('items', [])
+    
+    def create_task_from_exam(self, exam):
+        """Create a Google Task from scraped exam"""
+        if not self.service:
+            raise Exception("Google Tasks service not initialized")
+        
+        task_list_id = self.get_or_create_exams_tasklist()
+        
+        # Set task title and notes
+        task_title = f"{exam.subject} - {exam.exam_name}"
+        task_notes = f"Exam Date: {exam.exam_date.strftime('%Y-%m-%d')}\n\n{exam.exam_name}\n\nSource: {exam.get_site_display()}\nURL: {exam.url}"
+        
+        # Check if task already exists with same title and due date
+        try:
+            existing_tasks = self.service.tasks().list(
+                tasklist=task_list_id,
+                showCompleted=False,
+                maxResults=100
+            ).execute()
+            
+            tasks = existing_tasks.get('items', [])
+            
+            # Format exam due date for comparison (date only, no time)
+            exam_due_date = exam.exam_date.strftime('%Y-%m-%d')
+            
+            for task in tasks:
+                # Check if title matches
+                if task.get('title') == task_title:
+                    # Get task due date (date only, no time)
+                    task_due_date = None
+                    if task.get('due'):
+                        task_due_date = task['due'][:10]  # Extract YYYY-MM-DD
+                    
+                    # If both have same title and same due date, it's a duplicate
+                    if task_due_date == exam_due_date:
+                        logger.info(f"Task already exists: {task_title} (Due: {exam_due_date})")
+                        # Update exam record with existing task ID
+                        exam.google_task_id = task['id']
+                        exam.synced_to_google_tasks = True
+                        exam.save()
+                        return task['id']
+        except Exception as e:
+            logger.warning(f"Error checking for existing tasks: {str(e)}. Creating new task anyway.")
+        
+        # Prepare task data
+        task_body = {
+            'title': task_title,
+            'notes': task_notes,
+            'due': exam.exam_date.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+        }
+        
+        # Create the task
+        result = self.service.tasks().insert(
+            tasklist=task_list_id,
+            body=task_body
+        ).execute()
+        
+        # Update exam record with Google Task ID
+        exam.google_task_id = result['id']
+        exam.synced_to_google_tasks = True
+        exam.save()
+        
+        return result['id']
+    
+    def sync_exams_to_tasks(self, exam_queryset=None):
+        """Sync scraped exams to Google Tasks"""
+        if not self.service:
+            raise Exception("Google Tasks service not initialized. Please connect your Google account in settings.")
+        
+        from scraper.models import ScrapedExam
+        
+        if exam_queryset is None:
+            # Get all unsynced exams for this user
+            exam_queryset = ScrapedExam.objects.filter(
+                user=self.user,
+                synced_to_google_tasks=False
+            )
+        
+        synced_count = 0
+        errors = []
+        
+        for exam in exam_queryset:
+            try:
+                self.create_task_from_exam(exam)
+                synced_count += 1
+            except Exception as e:
+                error_msg = str(e)
+                # Provide user-friendly error messages
+                if 'invalid_grant' in error_msg.lower():
+                    errors.append("Google authentication expired. Please reconnect your account.")
+                    break  # Stop trying if auth is expired
+                elif '<!' in error_msg or 'html' in error_msg.lower() or 'DOCTYPE' in error_msg:
+                    errors.append("Google API error (authentication may have expired). Please reconnect your account.")
+                    break  # Stop trying if auth is expired
+                else:
+                    errors.append(f"Error syncing {exam.exam_name}: {error_msg}")
+        
+        return {
+            'synced_count': synced_count,
+            'errors': errors
+        }
+
 
 class GoogleOAuthService:
     """Service for Google OAuth authentication"""
@@ -197,7 +413,7 @@ class GoogleOAuthService:
     def get_authorization_url(request):
         """Get Google OAuth authorization URL"""
         # Use backend callback URL for now since frontend URL is not registered in Google Cloud Console
-        backend_callback_url = request.build_absolute_uri('/api/auth/google/callback/')
+        backend_callback_url = request.build_absolute_uri('/api/auth/google/callback')
         
         flow = Flow.from_client_config(
             {
@@ -233,7 +449,7 @@ class GoogleOAuthService:
         
         try:
             # Use backend callback URL for now since frontend URL is not registered in Google Cloud Console
-            backend_callback_url = request.build_absolute_uri('/api/auth/google/callback/')
+            backend_callback_url = request.build_absolute_uri('/api/auth/google/callback')
             
             flow = Flow.from_client_config(
                 {
@@ -263,12 +479,12 @@ class GoogleOAuthService:
                         "client_secret": settings.GOOGLE_OAUTH2_CLIENT_SECRET,
                         "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                         "token_uri": "https://oauth2.googleapis.com/token",
-                        "redirect_uris": [request.build_absolute_uri('/api/auth/google/callback/')]
+                        "redirect_uris": [request.build_absolute_uri('/api/auth/google/callback')]
                     }
                 },
                 scopes=None  # Don't enforce specific scopes
             )
-            flow.redirect_uri = request.build_absolute_uri('/api/auth/google/callback/')
+            flow.redirect_uri = request.build_absolute_uri('/api/auth/google/callback')
             flow.fetch_token(code=authorization_code)
         
         credentials = flow.credentials
@@ -313,16 +529,39 @@ class GoogleCalendarService:
         """Get user's Google OAuth credentials"""
         try:
             oauth_record = GoogleOAuth.objects.get(user=self.user)
+            
+            # Set expiry from database if available
+            expiry = oauth_record.token_expiry if hasattr(oauth_record, 'token_expiry') else None
+            
             credentials = Credentials(
                 token=oauth_record.access_token,
                 refresh_token=oauth_record.refresh_token,
                 token_uri='https://oauth2.googleapis.com/token',
                 client_id=settings.GOOGLE_OAUTH2_CLIENT_ID,
-                client_secret=settings.GOOGLE_OAUTH2_CLIENT_SECRET
+                client_secret=settings.GOOGLE_OAUTH2_CLIENT_SECRET,
+                expiry=expiry
             )
+            
+            # Always try to refresh if we have a refresh token
+            if credentials.refresh_token:
+                try:
+                    from google.auth.transport.requests import Request
+                    credentials.refresh(Request())
+                    
+                    # Update the stored tokens
+                    oauth_record.access_token = credentials.token
+                    if credentials.expiry:
+                        oauth_record.token_expiry = credentials.expiry
+                    oauth_record.save()
+                    
+                    logger.info(f"Refreshed OAuth token for user {self.user.username}")
+                except Exception as refresh_error:
+                    logger.error(f"Failed to refresh OAuth token: {str(refresh_error)}")
+                    raise Exception("Google authentication has expired. Please reconnect your Google account in settings.")
+            
             return credentials
         except GoogleOAuth.DoesNotExist:
-            return None
+            raise Exception("Google account not connected. Please connect your Google account in settings.")
     
     def get_calendars(self):
         """Get all user's calendars"""
@@ -485,3 +724,80 @@ class GoogleCalendarService:
         except Exception as e:
             logger.error(f"Error creating exam event: {str(e)}")
             raise
+    
+    def create_event_from_exam(self, exam, calendar_id=None):
+        """Create a Google Calendar event from scraped exam"""
+        if not self.service:
+            raise Exception("Google Calendar service not initialized")
+        
+        try:
+            if not calendar_id:
+                calendar_id = self.create_homework_calendar()
+            
+            # Prepare event data
+            event_body = {
+                'summary': f"📝 EXAM: {exam.subject} - {exam.exam_name}",
+                'description': f"Subject: {exam.subject}\nExam: {exam.exam_name}\n\nSource: {exam.get_site_display()}\nURL: {exam.url}",
+                'location': exam.get_site_display(),
+                'start': {
+                    'date': exam.exam_date.strftime('%Y-%m-%d'),
+                    'timeZone': 'UTC'
+                },
+                'end': {
+                    'date': exam.exam_date.strftime('%Y-%m-%d'),
+                    'timeZone': 'UTC'
+                },
+                'colorId': '11',  # Red color for exams
+                'reminders': {
+                    'useDefault': False,
+                    'overrides': [
+                        {'method': 'popup', 'minutes': 24 * 60},  # 1 day before
+                        {'method': 'popup', 'minutes': 60},  # 1 hour before
+                    ],
+                },
+            }
+            
+            result = self.service.events().insert(
+                calendarId=calendar_id,
+                body=event_body
+            ).execute()
+            
+            # Update exam record with Google Calendar event ID
+            exam.google_calendar_event_id = result['id']
+            exam.synced_to_google_calendar = True
+            exam.save()
+            
+            logger.info(f"Created calendar event for exam: {exam.exam_name}")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error creating exam calendar event: {str(e)}")
+            raise
+    
+    def sync_exams_to_calendar(self, calendar_id=None):
+        """Sync scraped exams to Google Calendar"""
+        if not self.service:
+            raise Exception("Google Calendar service not initialized")
+        
+        from scraper.models import ScrapedExam
+        
+        # Get unsynced exams for this user
+        exams = ScrapedExam.objects.filter(
+            user=self.user,
+            synced_to_google_calendar=False
+        )
+        
+        synced_count = 0
+        errors = []
+        
+        for exam in exams:
+            try:
+                self.create_event_from_exam(exam, calendar_id)
+                synced_count += 1
+            except Exception as e:
+                errors.append(f"Error syncing exam {exam.exam_name}: {str(e)}")
+        
+        return {
+            'synced_count': synced_count,
+            'errors': errors
+        }

@@ -1,9 +1,14 @@
+# Selenium imports (still used for Blackboard, Canvas, Moodle)
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
+
+# Modern imports for Manodienynas (requests) and Eduka (Playwright)
+import requests
+
 from .credential_storage import SecureCredentialStorage
 import logging
 import time
@@ -283,412 +288,116 @@ class CredentialVerificationService:
             return False, f"Verification error: {str(e)}"
     
     def verify_manodienynas_credentials(self, username, password, url=None):
-        """Verify Manodienynas.lt credentials by attempting actual login"""
-        driver = None
+        """Verify Manodienynas.lt credentials using fast requests-based login"""
         try:
             if not username or not password:
                 return False, "Username and password are required"
             
-            driver = self._setup_driver()
+            logger.info(f"Verifying Manodienynas credentials using requests method...")
             
-            # Use the provided URL or default to Manodienynas login page
-            login_url = url or "https://www.manodienynas.lt/1/lt/public/public/login"
-            driver.get(login_url)
+            # Use the same fast requests-based login from production scraper
+            import requests
+            session = requests.Session()
+            session.headers.update({
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            })
             
-            wait = WebDriverWait(driver, 15)
+            # First, visit the login page to establish session
+            login_url = url or 'https://www.manodienynas.lt/1/lt/public/public/login'
+            response = session.get(login_url)
             
-            # Wait for login form to appear
+            if response.status_code != 200:
+                return False, f"Failed to reach login page (status {response.status_code})"
+            
+            # Submit login to AJAX endpoint (same as production scraper)
+            ajax_login_url = 'https://www.manodienynas.lt/1/lt/ajax/user/login'
+            login_data = {
+                'username': username,
+                'password': password,
+            }
+            
+            login_response = session.post(ajax_login_url, data=login_data)
+            
+            if login_response.status_code != 200:
+                return False, f"Login request failed (status {login_response.status_code})"
+            
+            # Check response for success/failure
             try:
-                # Look for username field (Manodienynas typically uses username, not email)
-                username_selectors = [
-                    "input[name='username']",
-                    "input[name='user']",
-                    "input[name='login']",
-                    "#username",
-                    "#user",
-                    "#login",
-                    ".username-input",
-                    ".user-input"
-                ]
+                response_data = login_response.json()
                 
-                username_field = None
-                for selector in username_selectors:
-                    try:
-                        # Wait for element to be present and visible
-                        element = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, selector)))
-                        # Wait for element to be interactable
-                        username_field = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
-                        # Scroll element into view
-                        driver.execute_script("arguments[0].scrollIntoView(true);", username_field)
-                        time.sleep(0.5)
-                        break
-                    except TimeoutException:
-                        continue
+                # Check if login was successful (no error message)
+                if response_data.get('success') == False or response_data.get('error'):
+                    error_msg = response_data.get('message', 'Invalid credentials')
+                    return False, f"Login failed: {error_msg}"
                 
-                if not username_field:
-                    return False, "Username field not found on login page"
+                # If we got here, login was successful
+                logger.info("Manodienynas credentials verified successfully")
+                return True, "Credentials verified successfully"
                 
-                # Look for password field
-                password_selectors = [
-                    "input[type='password']",
-                    "input[name='password']",
-                    "#password",
-                    ".password-input"
-                ]
+            except ValueError:
+                # Response wasn't JSON, check if we got redirected or got HTML
+                response_text = login_response.text.lower()
                 
-                password_field = None
-                for selector in password_selectors:
-                    try:
-                        # Wait for element to be present and interactable
-                        password_field = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
-                        # Scroll element into view
-                        driver.execute_script("arguments[0].scrollIntoView(true);", password_field)
-                        time.sleep(0.5)
-                        break
-                    except (NoSuchElementException, TimeoutException):
-                        continue
+                # Check for error indicators in response
+                if 'error' in response_text or 'invalid' in response_text:
+                    return False, "Invalid username or password"
                 
-                if not password_field:
-                    return False, "Password field not found on login page"
-                
-                # Clear and enter credentials with improved interaction
-                try:
-                    # Click to focus before clearing
-                    username_field.click()
-                    username_field.clear()
-                    username_field.send_keys(username)
-                    time.sleep(0.5)  # Small delay between inputs
-                    
-                    # Click to focus before clearing
-                    password_field.click()
-                    password_field.clear()
-                    password_field.send_keys(password)
-                    time.sleep(0.5)
-                except Exception as e:
-                    return False, f"Failed to enter credentials: {str(e)}"
-                
-                # Look for submit button
-                submit_selectors = [
-                    "button[type='submit']",
-                    "input[type='submit']",
-                    "button.login-button",
-                    "button.submit-button",
-                    ".login-form button",
-                    "form button",
-                    "[value='Prisijungti']",  # Lithuanian for "Login"
-                    "[value='LOGIN']"
-                ]
-                
-                submit_button = None
-                for selector in submit_selectors:
-                    try:
-                        submit_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
-                        # Scroll submit button into view
-                        driver.execute_script("arguments[0].scrollIntoView(true);", submit_button)
-                        time.sleep(0.5)
-                        break
-                    except (NoSuchElementException, TimeoutException):
-                        continue
-                
-                if not submit_button:
-                    return False, "Submit button not found"
-                
-                # Click submit and wait for response
-                try:
-                    submit_button.click()
-                except Exception as e:
-                    # Try JavaScript click if regular click fails
-                    driver.execute_script("arguments[0].click();", submit_button)
-                
-                # Wait for page to load and check result
-                time.sleep(3)
-                
-                current_url = driver.current_url.lower()
-                page_source = driver.page_source.lower()
-                
-                # Check for successful login indicators
-                success_indicators = [
-                    "dashboard",
-                    "dienynas",     # Lithuanian for "diary"
-                    "pagrindinis",  # Lithuanian for "main"
-                    "home",
-                    "student",
-                    "pupil",
-                    "mokinys",      # Lithuanian for "student"
-                    "logout",
-                    "atsijungti",   # Lithuanian for "logout"
-                    "prisijungta",  # Lithuanian for "logged in"
-                    "sveiki",       # Lithuanian for "welcome"
-                ]
-                
-                # Check for error indicators
-                error_indicators = [
-                    "invalid",
-                    "incorrect",
-                    "error",
-                    "failed",
-                    "denied",
-                    "neteisingas",  # Lithuanian for "incorrect"
-                    "klaida",       # Lithuanian for "error"
-                    "nepavyko",     # Lithuanian for "failed"
-                    "neteisingai",  # Lithuanian for "incorrectly"
-                    "login",        # If still on login page
-                    "prisijungimas" # Lithuanian for "login"
-                ]
-                
-                # Check URL for success patterns
-                url_success_patterns = [
-                    "dashboard",
-                    "home",
-                    "main",
-                    "dienynas",
-                    "student",
-                    "pupil"
-                ]
-                
-                has_url_success = any(pattern in current_url for pattern in url_success_patterns)
-                has_content_success = any(indicator in page_source for indicator in success_indicators)
-                has_error = any(error in page_source for error in error_indicators)
-                
-                # If URL changed away from login and has success indicators
-                if has_url_success or (not "login" in current_url and has_content_success):
-                    return True, "Login successful - credentials verified"
-                elif has_error or "login" in current_url:
-                    return False, "Invalid credentials - login failed"
-                else:
-                    # Additional check: look for specific elements that indicate successful login
-                    try:
-                        # Look for elements that typically appear after login
-                        post_login_elements = [
-                            "[data-testid='user-menu']",
-                            ".user-menu",
-                            ".logout",
-                            ".atsijungti",
-                            ".profile",
-                            "nav",
-                            ".navigation",
-                            ".menu",
-                            ".header-user"
-                        ]
-                        
-                        for element_selector in post_login_elements:
-                            try:
-                                driver.find_element(By.CSS_SELECTOR, element_selector)
-                                return True, "Login successful - user interface detected"
-                            except NoSuchElementException:
-                                continue
-                        
-                        return False, "Unable to determine login status - please check credentials"
-                        
-                    except Exception:
-                        return False, "Unable to verify login status"
-                
-            except TimeoutException:
-                return False, "Login form not found or page took too long to load"
-                
+                # If no errors, assume success
+                return True, "Credentials verified successfully"
+            
+        except requests.RequestException as e:
+            logger.error(f"Network error during Manodienynas verification: {str(e)}")
+            return False, f"Network error: {str(e)}"
         except Exception as e:
             logger.error(f"Error verifying Manodienynas credentials: {str(e)}")
             return False, f"Verification failed: {str(e)}"
-        finally:
-            if driver:
-                driver.quit()
     
     def verify_eduka_credentials(self, username, password, url=None):
-        """Verify Eduka.lt credentials by attempting actual login"""
-        driver = None
+        """Verify Eduka.lt credentials using Playwright (same as production scraper)"""
         try:
             if not username or not password:
                 return False, "Username and password are required"
             
-            driver = self._setup_driver()
+            logger.info(f"Verifying Eduka credentials using Playwright...")
             
-            # Use the provided URL or default to Eduka auth page
-            auth_url = url or "https://eduka.lt/auth"
-            driver.get(auth_url)
+            # Use the production Playwright scraper for verification
+            # This ensures 100% consistency with scraping
+            from scraper.eduka_playwright import EdukaPlaywrightScraper
             
-            wait = WebDriverWait(driver, 15)
-            
-            # Wait for login form to appear
-            try:
-                # Look for email/username field (Eduka might use email)
-                username_selectors = [
-                    "input[type='email']",
-                    "input[name='email']", 
-                    "input[name='username']",
-                    "#email",
-                    "#username",
-                    ".email-input",
-                    ".username-input"
-                ]
-                
-                username_field = None
-                for selector in username_selectors:
-                    try:
-                        # Wait for element to be present and visible
-                        element = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, selector)))
-                        # Wait for element to be interactable
-                        username_field = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
-                        # Scroll element into view
-                        driver.execute_script("arguments[0].scrollIntoView(true);", username_field)
-                        time.sleep(0.5)
-                        break
-                    except TimeoutException:
-                        continue
-                
-                if not username_field:
-                    return False, "Username/email field not found on login page"
-                
-                # Look for password field
-                password_selectors = [
-                    "input[type='password']",
-                    "input[name='password']",
-                    "#password",
-                    ".password-input"
-                ]
-                
-                password_field = None
-                for selector in password_selectors:
-                    try:
-                        # Wait for element to be present and interactable
-                        password_field = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
-                        # Scroll element into view
-                        driver.execute_script("arguments[0].scrollIntoView(true);", password_field)
-                        time.sleep(0.5)
-                        break
-                    except (NoSuchElementException, TimeoutException):
-                        continue
-                
-                if not password_field:
-                    return False, "Password field not found on login page"
-                
-                # Clear and enter credentials with improved interaction
-                try:
-                    # Click to focus before clearing
-                    username_field.click()
-                    username_field.clear()
-                    username_field.send_keys(username)
-                    time.sleep(0.5)  # Small delay between inputs
+            # Create a temporary user object just for verification
+            class TempUser:
+                def __init__(self, username, password):
+                    self.username = username
+                    self.password = password
                     
-                    # Click to focus before clearing
-                    password_field.click()
-                    password_field.clear()
-                    password_field.send_keys(password)
-                    time.sleep(0.5)
-                except Exception as e:
-                    return False, f"Failed to enter credentials: {str(e)}"
-                
-                # Look for submit button
-                submit_selectors = [
-                    "button.tst-login-submit-button",  # Eduka-specific selector
-                    "button[type='submit']",
-                    "button[type='button']",  # Eduka uses type="button"
-                    "input[type='submit']",
-                    "button.login-button",
-                    "button.submit-button",
-                    "button.btn--custom-primary",  # Eduka button class
-                    ".login-form button",
-                    "form button"
-                ]
-                
-                submit_button = None
-                for selector in submit_selectors:
-                    try:
-                        submit_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
-                        # Scroll submit button into view
-                        driver.execute_script("arguments[0].scrollIntoView(true);", submit_button)
-                        time.sleep(0.5)
-                        break
-                    except (NoSuchElementException, TimeoutException):
-                        continue
-                
-                if not submit_button:
-                    return False, "Submit button not found"
-                
-                # Click submit and wait for response
-                try:
-                    submit_button.click()
-                except Exception as e:
-                    # Try JavaScript click if regular click fails
-                    driver.execute_script("arguments[0].click();", submit_button)
-                
-                # Wait for page to load and check result
-                time.sleep(3)
-                
-                current_url = driver.current_url.lower()
-                page_source = driver.page_source.lower()
-                
-                # Check for successful login indicators
-                success_indicators = [
-                    "dashboard",
-                    "student",
-                    "my-groups",
-                    "profile",
-                    "logout",
-                    "prisijungta",  # Lithuanian for "logged in"
-                    "pagrindinis",  # Lithuanian for "main"
-                ]
-                
-                # Check for error indicators
-                error_indicators = [
-                    "invalid",
-                    "incorrect",
-                    "error",
-                    "failed",
-                    "denied",
-                    "neteisingas",  # Lithuanian for "incorrect"
-                    "klaida",       # Lithuanian for "error"
-                    "nepavyko",     # Lithuanian for "failed"
-                ]
-                
-                # Check URL for success patterns
-                url_success_patterns = [
-                    "dashboard",
-                    "student",
-                    "home",
-                    "main",
-                    "groups"
-                ]
-                
-                has_url_success = any(pattern in current_url for pattern in url_success_patterns)
-                has_content_success = any(indicator in page_source for indicator in success_indicators)
-                has_error = any(error in page_source for error in error_indicators)
-                
-                # If URL changed away from auth and has success indicators
-                if has_url_success or (not "auth" in current_url and has_content_success):
-                    return True, "Login successful - credentials verified"
-                elif has_error or "auth" in current_url:
-                    return False, "Invalid credentials - login failed"
-                else:
-                    # Additional check: look for specific elements that indicate successful login
-                    try:
-                        # Look for elements that typically appear after login
-                        post_login_elements = [
-                            "[data-testid='user-menu']",
-                            ".user-menu",
-                            ".logout",
-                            ".profile",
-                            "nav",
-                            ".navigation"
-                        ]
+                def get_eduka_credentials(self):
+                    return {
+                        'username': username,
+                        'password': password
+                    }
+            
+            temp_user = TempUser(username, password)
+            
+            try:
+                # Use the production scraper with context manager
+                with EdukaPlaywrightScraper(temp_user) as scraper:
+                    # Just try to login (don't scrape)
+                    success = scraper.login(username, password)
+                    
+                    if success:
+                        logger.info("Eduka credentials verified successfully")
+                        return True, "Credentials verified successfully"
+                    else:
+                        logger.warning("Eduka login failed - invalid credentials")
+                        return False, "Invalid username or password"
                         
-                        for element_selector in post_login_elements:
-                            try:
-                                driver.find_element(By.CSS_SELECTOR, element_selector)
-                                return True, "Login successful - user interface detected"
-                            except NoSuchElementException:
-                                continue
-                        
-                        return False, "Unable to determine login status - please check credentials"
-                        
-                    except Exception:
-                        return False, "Unable to verify login status"
-                
-            except TimeoutException:
-                return False, "Login form not found or page took too long to load"
-                
+            except Exception as e:
+                logger.error(f"Error during Eduka verification: {str(e)}")
+                return False, f"Verification failed: {str(e)}"
+            
+        except ImportError:
+            logger.error("Playwright scraper not available")
+            return False, "Eduka verification requires Playwright. Run: pip install playwright && playwright install chromium"
         except Exception as e:
             logger.error(f"Error verifying Eduka credentials: {str(e)}")
             return False, f"Verification failed: {str(e)}"
-        finally:
-            if driver:
-                driver.quit()

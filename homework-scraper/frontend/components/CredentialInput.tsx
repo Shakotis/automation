@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
@@ -185,6 +185,33 @@ export default function CredentialInput({ selectedSites, onComplete, onBack }: C
   const saveCredentials = async (siteId: string) => {
     const cred = credentials[siteId];
     
+    // Read the actual DOM values to catch autofilled passwords that didn't trigger onChange
+    // HeroUI wraps inputs, so we need to find the actual <input> elements within the card
+    const siteCards = Array.from(document.querySelectorAll('[data-site-card]'));
+    let actualUsername = cred.username;
+    let actualPassword = cred.password;
+    
+    for (const card of siteCards) {
+      if ((card as HTMLElement).dataset.siteCard === siteId) {
+        const inputs = card.querySelectorAll('input');
+        if (inputs.length >= 2) {
+          // First input is username, second is password
+          actualUsername = inputs[0].value || cred.username;
+          actualPassword = inputs[1].value || cred.password;
+          
+          console.log(`[${siteId}] Saving credentials:`, {
+            stateUsername: cred.username,
+            domUsername: inputs[0].value,
+            finalUsername: actualUsername,
+            statePassword: cred.password ? '***' : '(empty)',
+            domPassword: inputs[1].value ? '***' : '(empty)',
+            finalPassword: actualPassword ? '***' : '(empty)'
+          });
+          break;
+        }
+      }
+    }
+    
     try {
       const response = await fetch('/api/auth/credentials/', {
         method: 'POST',
@@ -194,8 +221,8 @@ export default function CredentialInput({ selectedSites, onComplete, onBack }: C
         credentials: 'include',
         body: JSON.stringify({
           site: siteId,
-          username: cred.username,
-          password: cred.password,
+          username: actualUsername,
+          password: actualPassword,
           additional_data: {
             url: cred.url
           }
@@ -304,7 +331,7 @@ export default function CredentialInput({ selectedSites, onComplete, onBack }: C
 
       <div className="space-y-6 mb-8">
         {sites.map((site) => (
-          <Card key={site.id} className="p-6">
+          <Card key={site.id} className="p-6" data-site-card={site.id}>
             <CardHeader className="px-0 pt-0">
               <div className="flex items-center justify-between w-full">
                 <div>
@@ -330,6 +357,9 @@ export default function CredentialInput({ selectedSites, onComplete, onBack }: C
                   placeholder="Enter your username or email"
                   value={credentials[site.id]?.username || ''}
                   onChange={(e) => handleCredentialChange(site.id, 'username', e.target.value)}
+                  onInput={(e) => handleCredentialChange(site.id, 'username', (e.target as HTMLInputElement).value)}
+                  autoComplete="off"
+                  data-site={site.id}
                   isRequired
                 />
                 <Input
@@ -338,6 +368,9 @@ export default function CredentialInput({ selectedSites, onComplete, onBack }: C
                   type={showPasswords[site.id] ? "text" : "password"}
                   value={credentials[site.id]?.password || ''}
                   onChange={(e) => handleCredentialChange(site.id, 'password', e.target.value)}
+                  onInput={(e) => handleCredentialChange(site.id, 'password', (e.target as HTMLInputElement).value)}
+                  autoComplete="new-password"
+                  data-site={site.id}
                   endContent={
                     <button
                       className="focus:outline-none"

@@ -7,6 +7,8 @@ import { Chip } from "@heroui/chip";
 import { Progress } from "@heroui/progress";
 import { Divider } from "@heroui/divider";
 import { Spinner } from "@heroui/spinner";
+import { Switch } from "@heroui/switch";
+import { addToast } from "@heroui/toast";
 import { title } from "@/components/primitives";
 
 interface HomeworkItem {
@@ -30,9 +32,10 @@ interface DashboardStats {
   overdue_homework: number;
   sites_enabled: string[];
   last_scrape: string | null;
+  tomorrow_total: number;
 }
 
-type FilterStatus = 'all' | 'upcoming' | 'overdue' | 'completed';
+type FilterStatus = 'all' | 'upcoming' | 'overdue' | 'completed' | 'deleted';
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -41,10 +44,11 @@ export default function DashboardPage() {
   const [scraping, setScraping] = useState(false);
   const [filter, setFilter] = useState<FilterStatus>('all');
   const [error, setError] = useState<string | null>(null);
+  const [showDeleted, setShowDeleted] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
-  }, [filter]);
+  }, [filter, showDeleted]);
 
   const fetchDashboardData = async () => {
     try {
@@ -56,9 +60,16 @@ export default function DashboardPage() {
         credentials: 'include', // Include cookies for authentication
       });
       
-      // If unauthorized, redirect to login
+      // If unauthorized, show toast and redirect to login
       if (statsResponse.status === 401) {
-        window.location.href = '/';
+        addToast({
+          title: 'Authentication Required',
+          description: 'Please sign in with Google to view homework',
+          color: 'danger',
+        });
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 2000);
         return;
       }
       
@@ -66,30 +77,63 @@ export default function DashboardPage() {
         const statsData = await statsResponse.json();
         setStats(statsData);
       } else {
-        throw new Error(`Failed to fetch stats: ${statsResponse.statusText}`);
+        // Silently handle stats fetch error - not critical
+        console.warn('Failed to fetch stats:', statsResponse.statusText);
       }
 
       // Fetch homework based on filter
       let homeworkUrl = '/api/scraper/homework/';
-      if (filter !== 'all') {
-        homeworkUrl += `?status=${filter}`;
+      const params = new URLSearchParams();
+      
+      if (showDeleted) {
+        params.append('deleted', 'true');
+      }
+      
+      if (filter !== 'all' && filter !== 'deleted') {
+        params.append('status', filter);
+      }
+      
+      if (params.toString()) {
+        homeworkUrl += `?${params.toString()}`;
       }
       
       const homeworkResponse = await fetch(homeworkUrl, {
         credentials: 'include', // Include cookies for authentication
       });
+      
+      if (homeworkResponse.status === 401) {
+        addToast({
+          title: 'Authentication Required',
+          description: 'Please sign in with Google to view homework',
+          color: 'danger',
+        });
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 2000);
+        return;
+      }
+      
       if (homeworkResponse.ok) {
         const homeworkData = await homeworkResponse.json();
         // Handle paginated response
         const results = homeworkData.results || homeworkData;
         setHomework(Array.isArray(results) ? results : []);
       } else if (homeworkResponse.status === 404) {
-        setError('API endpoint not found. Please ensure the backend server is running.');
+        addToast({
+          title: 'Backend Connection Failed',
+          description: 'Could not connect to backend server',
+          color: 'danger',
+        });
         setHomework([]);
       }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
-      setError('Failed to fetch homework data. Please check your connection.');
+      // Show toast for connection errors
+      addToast({
+        title: 'Connection Error',
+        description: 'Failed to connect to backend server',
+        color: 'danger',
+      });
       setHomework([]);
     } finally {
       setLoading(false);
@@ -100,42 +144,111 @@ export default function DashboardPage() {
     setScraping(true);
     setError(null);
     try {
-      const response = await fetch('/api/scraper/homework/scrape/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include', // Important: include cookies for authentication
+      // First, check if user has credentials before attempting to scrape
+      const credResponse = await fetch('/api/auth/credentials', {
+        credentials: 'include',
       });
       
-      if (response.ok) {
-        const result = await response.json();
-        const message = result.synced_count !== undefined
-          ? `✅ Successfully scraped ${result.scraped_count} homework items and synced ${result.synced_count} to Google Tasks!`
-          : `✅ Successfully scraped ${result.scraped_count} homework items!`;
-        alert(message);
-        await fetchDashboardData();
-      } else if (response.status === 401) {
-        setError('Please sign in with Google to scrape homework.');
-        alert('⚠️ Please sign in with Google first to scrape homework.');
-        window.location.href = '/auth/google';
-      } else {
-        const errorData = await response.json();
-        const errorMessage = errorData.error || 'Failed to scrape homework';
-        setError(errorMessage);
-        alert(`❌ ${errorMessage}`);
+      if (credResponse.ok) {
+        const credData = await credResponse.json();
+        const hasCredentials = credData.credentials && Object.keys(credData.credentials).length > 0;
         
-        // If error mentions credentials, suggest going to settings
-        if (errorMessage.toLowerCase().includes('credential')) {
-          if (confirm('Would you like to go to Settings to add/verify your credentials?')) {
-            window.location.href = '/settings?setup=credentials';
-          }
+        if (!hasCredentials) {
+          addToast({
+            title: 'No Credentials',
+            description: 'Please add your school credentials in Settings',
+            color: 'warning',
+          });
+          setScraping(false);
+          window.location.href = '/settings?setup=credentials';
+          return;
         }
+      } else if (credResponse.status === 401) {
+        addToast({
+          title: 'Authentication Required',
+          description: 'Please sign in with Google first',
+          color: 'danger',
+        });
+        setScraping(false);
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 2000);
+        return;
+      }
+      
+      // Now proceed with scraping
+      const scrapePromise = (async () => {
+        try {
+          const response = await fetch('/api/scraper/homework/scrape', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            await fetchDashboardData();
+            const message = result.synced_count !== undefined
+              ? `Scraped ${result.scraped_count} items and synced ${result.synced_count} to Google Tasks`
+              : `Scraped ${result.scraped_count} homework items`;
+            return { success: true, message };
+          } else if (response.status === 401) {
+            setTimeout(() => {
+              window.location.href = '/';
+            }, 2000);
+            throw new Error('Authentication required - please sign in');
+          } else {
+            const errorData = await response.json().catch(() => ({}));
+            const errorMessage = errorData.error || 'Failed to scrape homework';
+            
+            // If error mentions credentials, suggest going to settings
+            if (errorMessage.toLowerCase().includes('credential')) {
+              setTimeout(() => {
+                if (confirm('Would you like to go to Settings to add/verify your credentials?')) {
+                  window.location.href = '/settings?setup=credentials';
+                }
+              }, 1000);
+            }
+            throw new Error(errorMessage);
+          }
+        } catch (networkError) {
+          // Handle network/connection errors
+          if (networkError instanceof Error) {
+            throw networkError;
+          }
+          throw new Error('Failed to connect to backend server');
+        }
+      })();
+
+      addToast({
+        title: 'Scraping Homework',
+        description: 'Fetching latest homework from school websites...',
+        color: 'warning',
+        promise: scrapePromise.then(
+          (result) => ({
+            title: 'Scraping Complete',
+            description: result.message,
+            color: 'success' as const,
+          }),
+          (error) => ({
+            title: 'Scraping Failed',
+            description: error instanceof Error ? error.message : 'Unknown error',
+            color: 'danger' as const,
+          })
+        ),
+      });
+
+      try {
+        await scrapePromise;
+      } catch (error) {
+        // Error already handled by toast via promise rejection
+        // Silently catch to prevent console error
       }
     } catch (error) {
-      console.error('Error scraping homework:', error);
-      setError('Failed to scrape homework. Please try again.');
-      alert('❌ Network error: Could not connect to the server. Please ensure both servers are running.');
+      console.error('Error in scrape handler:', error);
+      // Toast already shown via promise
     } finally {
       setScraping(false);
     }
@@ -226,7 +339,7 @@ export default function DashboardPage() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
       <div className="flex justify-between items-center mb-8">
-        <h1 className={title()}>Homework Dashboard</h1>
+        <h1 className={title()}>Homework</h1>
         <Button
           color="primary"
           onPress={handleScrapeNow}
@@ -246,13 +359,13 @@ export default function DashboardPage() {
       )}
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
         <Card className="hover:scale-105 transition-transform">
           <CardBody className="text-center py-6">
             <div className="text-4xl font-bold text-primary mb-2">
               {stats?.total_homework || 0}
             </div>
-            <div className="text-sm text-default-500">Total</div>
+            <div className="text-sm text-default-500">This Week</div>
           </CardBody>
         </Card>
 
@@ -267,114 +380,87 @@ export default function DashboardPage() {
 
         <Card className="hover:scale-105 transition-transform">
           <CardBody className="text-center py-6">
-            <div className="text-4xl font-bold text-danger mb-2">
-              {stats?.overdue_homework || 0}
-            </div>
-            <div className="text-sm text-default-500">Overdue</div>
-          </CardBody>
-        </Card>
-
-        <Card className="hover:scale-105 transition-transform">
-          <CardBody className="text-center py-6">
             <div className="text-4xl font-bold text-success mb-2">
               {stats?.completed_homework || 0}
             </div>
             <div className="text-sm text-default-500">Completed</div>
           </CardBody>
         </Card>
-
-        <Card className="hover:scale-105 transition-transform">
-          <CardBody className="text-center py-6">
-            <div className="text-4xl font-bold text-secondary mb-2">
-              {stats?.synced_homework || 0}
-            </div>
-            <div className="text-sm text-default-500">Synced</div>
-          </CardBody>
-        </Card>
       </div>
 
-      {/* Sync Progress */}
-      {stats && stats.total_homework > 0 && (
+      {/* Completion Rate Progress */}
+      {stats && stats.tomorrow_total > 0 && (
         <Card className="mb-8">
           <CardHeader>
-            <h3 className="text-lg font-semibold">Progress Overview</h3>
+            <h3 className="text-lg font-semibold">Tomorrow's Tasks Completion</h3>
           </CardHeader>
           <CardBody>
-            <div className="space-y-4">
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm">Completion Rate</span>
-                  <span className="text-sm text-default-500">
-                    {stats.completed_homework}/{stats.total_homework} ({Math.round((stats.completed_homework / stats.total_homework) * 100)}%)
-                  </span>
-                </div>
-                <Progress
-                  value={(stats.completed_homework / stats.total_homework) * 100}
-                  color="success"
-                  size="md"
-                />
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm">Completion Rate (Tomorrow)</span>
+                <span className="text-sm text-default-500">
+                  {stats.completed_homework}/{stats.tomorrow_total} ({Math.round((stats.completed_homework / stats.tomorrow_total) * 100)}%)
+                </span>
               </div>
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm">Google Tasks Sync</span>
-                  <span className="text-sm text-default-500">
-                    {stats.synced_homework}/{stats.total_homework} ({Math.round((stats.synced_homework / stats.total_homework) * 100)}%)
-                  </span>
-                </div>
-                <Progress
-                  value={(stats.synced_homework / stats.total_homework) * 100}
-                  color="primary"
-                  size="md"
-                />
-              </div>
+              <Progress
+                value={(stats.completed_homework / stats.tomorrow_total) * 100}
+                color="success"
+                size="md"
+              />
             </div>
           </CardBody>
         </Card>
       )}
 
       {/* Filter Buttons */}
-      <div className="flex gap-2 mb-6 flex-wrap">
+      <div className="flex gap-2 mb-6 flex-wrap items-center">
         <Button
           size="sm"
-          color={filter === 'all' ? 'primary' : 'default'}
-          variant={filter === 'all' ? 'solid' : 'bordered'}
-          onPress={() => setFilter('all')}
+          color={filter === 'all' && !showDeleted ? 'primary' : 'default'}
+          variant={filter === 'all' && !showDeleted ? 'solid' : 'bordered'}
+          onPress={() => { setFilter('all'); setShowDeleted(false); }}
         >
-          All ({stats?.total_homework || 0})
+          This Week ({stats?.total_homework || 0})
         </Button>
         <Button
           size="sm"
           color={filter === 'upcoming' ? 'success' : 'default'}
           variant={filter === 'upcoming' ? 'solid' : 'bordered'}
-          onPress={() => setFilter('upcoming')}
+          onPress={() => { setFilter('upcoming'); setShowDeleted(false); }}
         >
           Upcoming ({stats?.pending_homework || 0})
         </Button>
         <Button
           size="sm"
-          color={filter === 'overdue' ? 'danger' : 'default'}
-          variant={filter === 'overdue' ? 'solid' : 'bordered'}
-          onPress={() => setFilter('overdue')}
-        >
-          Overdue ({stats?.overdue_homework || 0})
-        </Button>
-        <Button
-          size="sm"
           color={filter === 'completed' ? 'success' : 'default'}
           variant={filter === 'completed' ? 'solid' : 'bordered'}
-          onPress={() => setFilter('completed')}
+          onPress={() => { setFilter('completed'); setShowDeleted(false); }}
         >
           Completed ({stats?.completed_homework || 0})
         </Button>
+        
+        <Switch
+          isSelected={showDeleted}
+          onValueChange={(checked) => {
+            setShowDeleted(checked);
+            if (checked) {
+              setFilter('all');
+            }
+          }}
+          size="sm"
+          color="danger"
+        >
+          Show Deleted
+        </Switch>
       </div>
 
       {/* Homework List */}
       <Card>
         <CardHeader className="flex justify-between items-center">
           <h3 className="text-lg font-semibold">
-            {filter === 'all' && 'All Homework'}
+            {showDeleted && 'Deleted Tasks'}
+            {!showDeleted && filter === 'all' && 'This Week\'s Homework'}
             {filter === 'upcoming' && 'Upcoming Homework'}
-            {filter === 'overdue' && 'Overdue Homework'}
             {filter === 'completed' && 'Completed Homework'}
           </h3>
           {stats?.last_scrape && (
@@ -395,7 +481,20 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {homework.map((item, index) => (
+              {homework.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-2xl font-semibold text-default-400 mb-2">
+                    No homework left
+                  </p>
+                  <p className="text-default-500">
+                    {showDeleted 
+                      ? "No deleted tasks to show"
+                      : "Great job! You're all caught up! 🎉"
+                    }
+                  </p>
+                </div>
+              ) : (
+                homework.map((item, index) => (
                 <div key={item.id} className={`p-4 rounded-lg border ${item.completed ? 'bg-default-50 opacity-70' : 'bg-default-100'} hover:bg-default-200 transition-all`}>
                   <div className="flex items-start gap-4">
                     <div className="pt-1">
@@ -458,7 +557,8 @@ export default function DashboardPage() {
                   </div>
                   {index < homework.length - 1 && <Divider className="mt-4" />}
                 </div>
-              ))}
+              ))
+              )}
             </div>
           )}
         </CardBody>

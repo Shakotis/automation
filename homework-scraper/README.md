@@ -86,10 +86,14 @@ SUPABASE_KEY=your-supabase-anon-key
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Create a new project or select existing one
-3. Enable the Google Tasks API
+3. Enable the Google Tasks API and Google Calendar API
 4. Create OAuth 2.0 credentials:
    - Application type: Web application
-   - Authorized redirect URIs: `http://localhost:3000/auth/google/callback/`
+   - Authorized redirect URIs (add ALL of these):
+     - `http://localhost:3000/auth/google/callback/`
+     - `http://127.0.0.1:3000/auth/google/callback/`
+     - `http://localhost:8000/api/auth/google/callback/`
+     - `http://127.0.0.1:8000/api/auth/google/callback/`
 5. Copy the Client ID and Client Secret to your `.env` files
 
 ### 5. Supabase Setup

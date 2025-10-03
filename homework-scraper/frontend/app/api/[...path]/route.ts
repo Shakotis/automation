@@ -3,37 +3,42 @@ import { NextRequest, NextResponse } from 'next/server';
 // This catches all /api/* routes and proxies them to Django backend
 export async function GET(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  return proxyToDjango(request, params.path);
+  const resolvedParams = await params;
+  return proxyToDjango(request, resolvedParams.path);
 }
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  return proxyToDjango(request, params.path);
+  const resolvedParams = await params;
+  return proxyToDjango(request, resolvedParams.path);
 }
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  return proxyToDjango(request, params.path);
+  const resolvedParams = await params;
+  return proxyToDjango(request, resolvedParams.path);
 }
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  return proxyToDjango(request, params.path);
+  const resolvedParams = await params;
+  return proxyToDjango(request, resolvedParams.path);
 }
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  return proxyToDjango(request, params.path);
+  const resolvedParams = await params;
+  return proxyToDjango(request, resolvedParams.path);
 }
 
 async function proxyToDjango(request: NextRequest, path: string[]) {
@@ -59,6 +64,7 @@ async function proxyToDjango(request: NextRequest, path: string[]) {
 
     // Forward cookies from the request
     const cookies = request.headers.get('cookie') || '';
+    console.log(`[API Proxy] Forwarding cookies: ${cookies}`);
 
     // Make request to Django
     const response = await fetch(targetUrl, {
@@ -87,10 +93,30 @@ async function proxyToDjango(request: NextRequest, path: string[]) {
       },
     });
 
-    // Forward Set-Cookie headers to maintain session
-    const setCookie = response.headers.get('set-cookie');
-    if (setCookie) {
-      nextResponse.headers.set('Set-Cookie', setCookie);
+    // Forward ALL Set-Cookie headers to maintain session
+    const setCookieHeaders = response.headers.getSetCookie();
+    if (setCookieHeaders && setCookieHeaders.length > 0) {
+      console.log(`[API Proxy] Received Set-Cookie headers: ${setCookieHeaders.length}`);
+      setCookieHeaders.forEach(cookie => {
+        console.log(`[API Proxy] Original cookie: ${cookie}`);
+        
+        // Rewrite the cookie to work with localhost origin
+        // Add SameSite=Lax for same-origin requests (since both frontend and proxy are on localhost:3000)
+        let rewrittenCookie = cookie;
+        
+        // If cookie doesn't have SameSite attribute, add it
+        if (!cookie.toLowerCase().includes('samesite=')) {
+          rewrittenCookie = `${cookie}; SameSite=Lax`;
+        }
+        
+        // If cookie doesn't have HttpOnly, add it for security (except for specific cookies)
+        if (!cookie.toLowerCase().includes('httponly') && !cookie.includes('csrf')) {
+          rewrittenCookie = `${rewrittenCookie}; HttpOnly`;
+        }
+        
+        console.log(`[API Proxy] Rewritten cookie: ${rewrittenCookie}`);
+        nextResponse.headers.append('Set-Cookie', rewrittenCookie);
+      });
     }
 
     return nextResponse;

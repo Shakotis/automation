@@ -1,7 +1,8 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from django.contrib.auth import login, logout
+from rest_framework.authentication import SessionAuthentication
+from django.contrib.auth import login, logout, update_session_auth_hash
 from django.shortcuts import redirect
 from django.contrib.auth.models import User
 from django.middleware.csrf import get_token
@@ -62,9 +63,42 @@ class GoogleOAuthCallbackView(APIView):
             print(f"DEBUG: Session key before login: {request.session.session_key}")
             
             login(request, user)
+            # Update session auth hash to ensure it matches current user state
+            update_session_auth_hash(request, user)
             print(f"DEBUG: Session key after login: {request.session.session_key}")
             print(f"DEBUG: User authenticated after login: {request.user.is_authenticated}")
             print(f"DEBUG: Session data: {dict(request.session)}")
+            print(f"DEBUG: Updated session auth hash")
+            
+            # Delete demo homework and duplicates for logged-in users
+            try:
+                from scraper.models import ScrapedHomework
+                # Delete demo homework (homework with specific demo markers)
+                demo_deleted = ScrapedHomework.objects.filter(
+                    user=user,
+                    title__icontains='demo'
+                ).delete()
+                logger.info(f"Deleted {demo_deleted[0]} demo homework items for user {user.email}")
+                
+                # Remove duplicate homework entries
+                # Keep the most recent one for each unique (title, due_date, site) combination
+                from django.db.models import Count, Min
+                duplicates = ScrapedHomework.objects.filter(user=user).values(
+                    'title', 'due_date', 'site'
+                ).annotate(count=Count('id'), min_id=Min('id')).filter(count__gt=1)
+                
+                for dup in duplicates:
+                    # Keep the first one, delete the rest
+                    ScrapedHomework.objects.filter(
+                        user=user,
+                        title=dup['title'],
+                        due_date=dup['due_date'],
+                        site=dup['site']
+                    ).exclude(id=dup['min_id']).delete()
+                
+                logger.info(f"Removed duplicate homework entries for user {user.email}")
+            except Exception as cleanup_error:
+                logger.warning(f"Failed to clean up homework data: {str(cleanup_error)}")
             
             # Sync user to Supabase
             try:
@@ -133,7 +167,56 @@ class GoogleOAuthCallbackView(APIView):
             
             # For GET requests (direct backend callback), redirect to frontend with result
             if self.request.method == 'GET':
-                return redirect(f'http://localhost:3000{redirect_url}')
+                # Force session to be saved
+                request.session.modified = True
+                request.session.save()
+                session_key = request.session.session_key
+                
+                print(f"DEBUG: Creating redirect with session_key: {session_key}")
+                print(f"DEBUG: Redirect URL: http://localhost:3000{redirect_url}")
+                
+                # Create redirect response to frontend
+                from django.http import HttpResponse
+                
+                # Instead of redirecting, send an HTML page that will:
+                # 1. Set the session cookie in the browser
+                # 2. Redirect to the frontend
+                html_content = f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Redirecting...</title>
+                    <script>
+                        // Set session info in localStorage for the frontend
+                        localStorage.setItem('session_key', '{session_key}');
+                        localStorage.setItem('user_authenticated', 'true');
+                        // Redirect to frontend
+                        window.location.href = 'http://localhost:3000{redirect_url}';
+                    </script>
+                </head>
+                <body>
+                    <p>Authentication successful! Redirecting...</p>
+                </body>
+                </html>
+                """
+                
+                response = HttpResponse(html_content, content_type='text/html')
+                
+                # Set session cookie that will work for localhost:3000
+                response.set_cookie(
+                    'sessionid',
+                    session_key,
+                    max_age=1209600,  # 2 weeks
+                    path='/',
+                    domain='localhost',  # Set for localhost domain
+                    secure=False,
+                    httponly=False,  # Allow JavaScript to read
+                    samesite='Lax'
+                )
+                
+                print(f"DEBUG: Set-Cookie headers: {response.cookies}")
+                
+                return response
             
             # For POST requests (frontend callback), return JSON
             return Response(response_data)
@@ -167,8 +250,8 @@ class LogoutView(APIView):
 @method_decorator(csrf_exempt, name='dispatch')
 class UserProfileView(APIView):
     """Get user profile information"""
-    authentication_classes = []  # Disable authentication
-    permission_classes = []  # Allow unauthenticated access
+    authentication_classes = [SessionAuthentication]  # Use session authentication
+    permission_classes = []  # Allow unauthenticated access (will check manually)
     
     def get(self, request):
         print(f"DEBUG: UserProfileView - Session key: {request.session.session_key}")
@@ -278,11 +361,16 @@ class UserPreferencesView(APIView):
 @method_decorator(csrf_exempt, name='dispatch')
 class CredentialManagementView(APIView):
     """Handle user credential storage and retrieval"""
-    authentication_classes = []  # Disable default authentication
+    authentication_classes = [SessionAuthentication]  # Use session authentication
     permission_classes = []  # Allow unauthenticated access to check auth status
     
     def get(self, request):
         """Get all user credentials (without passwords)"""
+        print(f"DEBUG: CredentialManagementView GET - Session key: {request.session.session_key}")
+        print(f"DEBUG: CredentialManagementView GET - User authenticated: {request.user.is_authenticated}")
+        print(f"DEBUG: CredentialManagementView GET - User: {request.user}")
+        print(f"DEBUG: CredentialManagementView GET - Session data: {dict(request.session)}")
+        
         if not request.user.is_authenticated:
             return Response({
                 'error': 'User not authenticated'
@@ -313,9 +401,15 @@ class CredentialManagementView(APIView):
     
     def post(self, request):
         """Store user credentials for a site"""
+        print(f"DEBUG: CredentialManagementView POST - Session key: {request.session.session_key}")
+        print(f"DEBUG: CredentialManagementView POST - User authenticated: {request.user.is_authenticated}")
+        print(f"DEBUG: CredentialManagementView POST - User: {request.user}")
+        print(f"DEBUG: CredentialManagementView POST - Session data: {dict(request.session)}")
+        print(f"DEBUG: CredentialManagementView POST - Cookies: {request.COOKIES}")
+        
         if not request.user.is_authenticated:
             return Response({
-                'error': 'User not authenticated'
+                'error': 'Please sign in with Google first to save credentials'
             }, status=status.HTTP_401_UNAUTHORIZED)
         
         site = request.data.get('site')
@@ -435,9 +529,15 @@ class CredentialManagementView(APIView):
 @method_decorator(csrf_exempt, name='dispatch')
 class CredentialVerificationView(APIView):
     """Handle credential verification"""
+    authentication_classes = [SessionAuthentication]  # Use session authentication
+    permission_classes = []  # Allow unauthenticated access to check auth status
     
     def post(self, request):
         """Verify user credentials for a specific site"""
+        print(f"DEBUG: CredentialVerificationView POST - Session key: {request.session.session_key}")
+        print(f"DEBUG: CredentialVerificationView POST - User authenticated: {request.user.is_authenticated}")
+        print(f"DEBUG: CredentialVerificationView POST - User: {request.user}")
+        
         if not request.user.is_authenticated:
             return Response({
                 'error': 'User not authenticated'

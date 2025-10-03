@@ -45,22 +45,26 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'corsheaders',
+    'django_celery_beat',  # For managing periodic tasks in admin
     'authentication',
     'scraper',
     'tasks',
 ]
 
 MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',  # Moved BEFORE CORS
     'corsheaders.middleware.CorsMiddleware',
     'homework_scraper.middleware.DisableCSRFForAPIMiddleware',
-    'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+# Disable automatic slash appending to allow URLs without trailing slashes
+APPEND_SLASH = False
 
 ROOT_URLCONF = 'homework_scraper.urls'
 
@@ -145,10 +149,14 @@ CORS_ALLOWED_ORIGINS = [
 CORS_ALLOW_CREDENTIALS = True
 
 # Session cookie settings for cross-origin requests
-SESSION_COOKIE_SAMESITE = None
+SESSION_COOKIE_SAMESITE = None  # Allow cross-site cookies for API proxy to work
 SESSION_COOKIE_SECURE = False  # Set to True in production with HTTPS
-SESSION_COOKIE_DOMAIN = 'localhost'
-SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_DOMAIN = None  # None to work with both localhost and 127.0.0.1
+SESSION_COOKIE_HTTPONLY = False  # Allow JavaScript access for Next.js proxy
+SESSION_COOKIE_NAME = 'sessionid'  # Standard Django session cookie name
+SESSION_COOKIE_PATH = '/'
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Use database-backed sessions
+SESSION_SAVE_EVERY_REQUEST = True  # Ensure session is saved on every request
 
 # CSRF settings
 CSRF_TRUSTED_ORIGINS = [
@@ -157,6 +165,9 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3001",
     "http://127.0.0.1:3001",
 ]
+CSRF_COOKIE_SAMESITE = None
+CSRF_COOKIE_HTTPONLY = False
+CSRF_COOKIE_SECURE = False
 
 # CORS settings
 CORS_ALLOWED_ORIGINS = [
@@ -214,3 +225,8 @@ ENCRYPTION_KEY = config('ENCRYPTION_KEY', default='')  # For local encryption fa
 # Celery settings (for async scraping)
 CELERY_BROKER_URL = 'redis://localhost:6379/0'
 CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Europe/Vilnius'  # Lithuanian timezone
+CELERY_ENABLE_UTC = True
