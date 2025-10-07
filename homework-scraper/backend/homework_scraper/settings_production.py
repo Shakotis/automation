@@ -52,14 +52,58 @@ if 'postgresql://' not in DATABASE_URL and 'postgres://' not in DATABASE_URL:
     )
 
 try:
-    DATABASES = {
-        'default': dj_database_url.config(
-            default=DATABASE_URL,
-            conn_max_age=600,
-            conn_health_checks=True,
-            ssl_require=True,  # Supabase requires SSL
-        )
-    }
+    db_config = dj_database_url.config(
+        default=DATABASE_URL,
+        conn_max_age=600,
+        conn_health_checks=True,
+        ssl_require=True,  # Supabase requires SSL
+    )
+    
+    # Force IPv4 to avoid "Network is unreachable" errors on Render
+    # Render's build environment doesn't support IPv6
+    # Solution: Resolve the hostname to IPv4 and use hostaddr parameter
+    import socket
+    
+    # Extract hostname from the database config
+    db_host = db_config.get('HOST', '')
+    
+    if db_host and 'supabase.co' in db_host:
+        try:
+            # Try to get IPv4 address only
+            ipv4_addresses = [
+                addr[4][0] for addr in socket.getaddrinfo(
+                    db_host, None, socket.AF_INET, socket.SOCK_STREAM
+                )
+            ]
+            if ipv4_addresses:
+                # Use the first IPv4 address
+                db_config['OPTIONS'] = {
+                    'sslmode': 'require',
+                    'connect_timeout': 10,
+                    'hostaddr': ipv4_addresses[0],  # Force IPv4 address
+                }
+                print(f"✓ Resolved {db_host} to IPv4: {ipv4_addresses[0]}")
+            else:
+                print(f"⚠ No IPv4 address found for {db_host}, using hostname")
+                db_config['OPTIONS'] = {
+                    'sslmode': 'require',
+                    'connect_timeout': 10,
+                }
+        except socket.gaierror as e:
+            print(f"⚠ DNS resolution failed for {db_host}: {e}")
+            print(f"  Falling back to hostname without IPv4 resolution")
+            db_config['OPTIONS'] = {
+                'sslmode': 'require',
+                'connect_timeout': 10,
+            }
+    else:
+        db_config['OPTIONS'] = {
+            'sslmode': 'require',
+            'connect_timeout': 10,
+        }
+    
+    DATABASES = {'default': db_config}
+    
 except ValueError as e:
     raise ValueError(
         f"Failed to parse DATABASE_URL: {str(e)}. "
