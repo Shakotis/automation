@@ -15,14 +15,36 @@ ALLOWED_HOSTS += ['.onrender.com']
 
 # Database - PostgreSQL on Render
 # Handle DATABASE_URL more robustly
-DATABASE_URL = os.environ.get('DATABASE_URL', '')
+DATABASE_URL = os.environ.get('https://kcixuytszyzgvcybxyym.supabase.co', '')
+
+# Check if DATABASE_URL contains placeholder text
+if 'user:password@host:port' in DATABASE_URL or ':port/' in DATABASE_URL:
+    raise ValueError(
+        "DATABASE_URL contains placeholder text! "
+        "This means the database service is not linked properly in Render. "
+        "\n\n"
+        "SOLUTION:\n"
+        "1. Wait for the database service 'homework-scraper-db' to finish provisioning\n"
+        "2. The web service should automatically redeploy once database is ready\n"
+        "3. If this persists, manually link the database:\n"
+        "   - Go to web service → Environment\n"
+        "   - DATABASE_URL should reference the database service\n"
+        "   - Or manually copy the connection string from the database service\n"
+        "\n"
+        f"Current DATABASE_URL: {DATABASE_URL[:80]}..."
+    )
 
 # Check if DATABASE_URL is properly set
-if not DATABASE_URL or DATABASE_URL == '' or 'postgresql://' not in DATABASE_URL:
+if not DATABASE_URL or DATABASE_URL == '':
     raise ValueError(
-        "DATABASE_URL environment variable is not properly set. "
-        "Please configure it in Render Dashboard with format: "
-        "postgresql://user:password@host:port/database"
+        "DATABASE_URL environment variable is not set. "
+        "Please ensure the database service is created and linked in render.yaml"
+    )
+
+if 'postgresql://' not in DATABASE_URL:
+    raise ValueError(
+        f"DATABASE_URL must be a PostgreSQL connection string. "
+        f"Current value: {DATABASE_URL[:50]}..."
     )
 
 try:
@@ -36,8 +58,9 @@ try:
 except ValueError as e:
     raise ValueError(
         f"Failed to parse DATABASE_URL: {str(e)}. "
-        f"Check that your DATABASE_URL is properly formatted. "
-        f"Current value starts with: {DATABASE_URL[:30]}..."
+        f"This usually means the port is invalid or the URL is malformed. "
+        f"\n\nCurrent DATABASE_URL starts with: {DATABASE_URL[:60]}..."
+        f"\n\nExpected format: postgresql://user:pass@host:5432/dbname"
     )
 
 # Static files with WhiteNoise
