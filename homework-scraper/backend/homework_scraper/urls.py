@@ -16,10 +16,22 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.http import JsonResponse
 from . import test_views
 from authentication.views import CSRFTokenView
 
+def health_check(request):
+    """Health check endpoint for monitoring and load balancers"""
+    return JsonResponse({
+        'status': 'ok',
+        'service': 'homework-scraper-backend',
+        'version': '1.0.0'
+    })
+
 urlpatterns = [
+    path('', health_check, name='root-health'),
+    path('api/health', health_check, name='api-health'),
+    path('health', health_check, name='health'),
     path('admin/', admin.site.urls),
     path('api/auth/', include('authentication.urls')),
     path('api/scraper/', include('scraper.urls')),
