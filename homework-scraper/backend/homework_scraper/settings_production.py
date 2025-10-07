@@ -11,7 +11,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY')
 
 # Allowed hosts
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',')
-ALLOWED_HOSTS += ['.onrender.com']
+ALLOWED_HOSTS += ['.onrender.com', 'api.dovydas.space', '.dovydas.space']
 
 # Database - PostgreSQL on Supabase
 # Handle DATABASE_URL more robustly
@@ -120,10 +120,14 @@ STATIC_URL = '/static/'
 
 # CORS settings for production
 CORS_ALLOWED_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',')
+if not CORS_ALLOWED_ORIGINS or CORS_ALLOWED_ORIGINS == ['']:
+    CORS_ALLOWED_ORIGINS = ['https://nd.dovydas.space', 'https://api.dovydas.space']
 CORS_ALLOW_CREDENTIALS = True
 
 # CSRF settings
 CSRF_TRUSTED_ORIGINS = os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',')
+if not CSRF_TRUSTED_ORIGINS or CSRF_TRUSTED_ORIGINS == ['']:
+    CSRF_TRUSTED_ORIGINS = ['https://nd.dovydas.space', 'https://api.dovydas.space']
 CSRF_COOKIE_SECURE = True
 CSRF_COOKIE_SAMESITE = 'None'
 
