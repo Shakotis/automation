@@ -1,0 +1,197 @@
+# Render Blueprint Configuration
+# Documentation: https://render.com/docs/blueprint-spec
+
+services:
+  # Django Backend Web Service
+  - type: web
+    name: homework-scraper-backend
+    runtime: python
+    plan: free  # Change to 'starter' or higher for production
+    region: oregon  # Choose your preferred region
+    branch: main
+    rootDir: backend
+    
+    # Build command
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
+      pip install psycopg2-binary
+      pip install whitenoise
+      python manage.py collectstatic --no-input
+      python manage.py migrate
+    
+    # Start command (using gunicorn for production)
+    startCommand: gunicorn homework_scraper.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120
+    
+    # Health check
+    healthCheckPath: /api/health
+    
+    # Environment variables (set sensitive values in Render Dashboard)
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
+      
+      - key: DEBUG
+        value: false
+      
+      - key: SECRET_KEY
+        generateValue: true  # Render will auto-generate
+      
+      - key: ALLOWED_HOSTS
+        value: .onrender.com
+      
+      - key: DATABASE_URL
+        fromDatabase:
+          name: homework-scraper-db
+          property: connectionString
+      
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: homework-scraper-redis
+          property: connectionString
+      
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: redis
+          name: homework-scraper-redis
+          property: connectionString
+      
+      # CORS - Add your Netlify URL here
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://your-app.netlify.app,http://localhost:3000
+      
+      - key: CSRF_TRUSTED_ORIGINS
+        value: https://your-app.netlify.app
+      
+      # Google OAuth (set in Render Dashboard)
+      - key: GOOGLE_OAUTH2_CLIENT_ID
+        sync: false
+      
+      - key: GOOGLE_OAUTH2_CLIENT_SECRET
+        sync: false
+      
+      # Supabase (if used)
+      - key: SUPABASE_URL
+        sync: false
+      
+      - key: SUPABASE_KEY
+        sync: false
+      
+      # Encryption key for credentials
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      
+      # Playwright (if needed)
+      - key: PLAYWRIGHT_BROWSERS_PATH
+        value: /opt/render/.cache/ms-playwright
+    
+    # Disk for SQLite (if not using PostgreSQL)
+    # disk:
+    #   name: homework-scraper-disk
+    #   mountPath: /opt/render/project/src/backend
+    #   sizeGB: 1
+
+  # PostgreSQL Database
+  - type: pserv
+    name: homework-scraper-db
+    runtime: postgresql
+    plan: free  # Free tier includes 1GB storage
+    databaseName: homework_scraper
+    databaseUser: homework_user
+    
+  # Redis for Celery
+  - type: redis
+    name: homework-scraper-redis
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+    region: oregon
+    ipAllowList: []  # Empty = allow all
+
+  # Celery Worker (Background tasks)
+  - type: worker
+    name: homework-scraper-celery
+    runtime: python
+    plan: free
+    region: oregon
+    branch: main
+    rootDir: backend
+    
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
+      pip install psycopg2-binary
+      playwright install chromium
+    
+    startCommand: celery -A homework_scraper worker --loglevel=info --concurrency=2
+    
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
+      
+      - key: DATABASE_URL
+        fromDatabase:
+          name: homework-scraper-db
+          property: connectionString
+      
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: homework-scraper-redis
+          property: connectionString
+      
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: redis
+          name: homework-scraper-redis
+          property: connectionString
+      
+      - key: SECRET_KEY
+        sync: false
+      
+      - key: ENCRYPTION_KEY
+        sync: false
+      
+      # Playwright
+      - key: PLAYWRIGHT_BROWSERS_PATH
+        value: /opt/render/.cache/ms-playwright
+
+  # Celery Beat (Scheduled tasks)
+  - type: worker
+    name: homework-scraper-celery-beat
+    runtime: python
+    plan: free
+    region: oregon
+    branch: main
+    rootDir: backend
+    
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
+      pip install psycopg2-binary
+    
+    startCommand: celery -A homework_scraper beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
+      
+      - key: DATABASE_URL
+        fromDatabase:
+          name: homework-scraper-db
+          property: connectionString
+      
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: homework-scraper-redis
+          property: connectionString
+      
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: redis
+          name: homework-scraper-redis
+          property: connectionString
+      
+      - key: SECRET_KEY
+        sync: false

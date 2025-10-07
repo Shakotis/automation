@@ -1,8 +1,8 @@
-# Homework Scraper
+# Homework Scraper 🎓
 
 A web application that automatically scrapes homework from Lithuanian educational websites (Manodienynas.lt and Eduka.lt) and syncs them to Google Tasks.
 
-## Features
+## ✨ Features
 
 - 🤖 **Automated Scraping**: Automatically scrape homework from Manodienynas.lt and Eduka.lt
 - 📋 **Google Tasks Integration**: Sync homework directly to your Google Tasks "Homework" list
@@ -10,21 +10,46 @@ A web application that automatically scrapes homework from Lithuanian educationa
 - 🔐 **Secure Authentication**: Google OAuth2 for secure access
 - 💾 **Data Backup**: Supabase integration for data storage and backup
 - ⚙️ **Configurable**: Customize scraping frequency and site preferences
+- ⚡ **Fast Scraping**: Optimized with requests (Manodienynas) and Playwright (Eduka)
+- 🔄 **Background Tasks**: Celery for scheduled scraping
 
-## Tech Stack
+## 🚀 Quick Start
+
+### Local Development
+See [Local Setup](#setup-instructions) below for development environment.
+
+### Production Deployment
+Ready to deploy? We have complete guides:
+
+- 📖 **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Complete step-by-step deployment guide
+- ✅ **[DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md)** - Quick reference checklist
+- 🎯 **[QUICK_START_VISUAL.md](./QUICK_START_VISUAL.md)** - Visual quick start (40 minutes)
+- 📊 **[PRODUCTION_SETUP_SUMMARY.md](./PRODUCTION_SETUP_SUMMARY.md)** - What's included
+
+**Platforms:**
+- **Frontend**: Netlify (automatic deploys, global CDN)
+- **Backend**: Render (PostgreSQL, Redis, Celery included)
+
+**Cost**: Free tier available, ~$40/month for production
+
+## 🏗️ Tech Stack
 
 ### Frontend
-- **Next.js 14** with App Router
+- **Next.js 15** with App Router
 - **HeroUI** component library
 - **TailwindCSS** for styling
 - **TypeScript** for type safety
+- **Deployed on**: Netlify
 
 ### Backend
-- **Django** with Django REST Framework
-- **Selenium** for web scraping
+- **Django 5.2** with Django REST Framework
+- **Requests + BeautifulSoup** for Manodienynas scraping (5-7x faster)
+- **Playwright** for Eduka scraping (Angular SPA)
 - **Google APIs** for Tasks integration
-- **Supabase** for database storage
-- **Celery** for background tasks (optional)
+- **PostgreSQL** database (production)
+- **Redis** for Celery
+- **Celery + Beat** for background/scheduled tasks
+- **Deployed on**: Render.com
 
 ## Setup Instructions
 
