@@ -13,6 +13,11 @@
 [build.environment]
   # Node version
   NODE_VERSION = "20"
+  
+  # API URL for production
+  NEXT_PUBLIC_API_URL = "https://api.dovydas.space/api"
+  NEXT_PUBLIC_SITE_URL = "https://nd.dovydas.space"
+  NEXT_PUBLIC_GOOGLE_CLIENT_ID = "1046454672027-cjd7mcu13077ss0tnp3hg31fn7e42km6.apps.googleusercontent.com"
 
 # Redirect rules for SPA routing
 # This ensures all routes serve index.html for client-side routing
