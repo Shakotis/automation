@@ -1,0 +1,5 @@
+# Netlify SPA Redirects
+# This ensures all routes serve the index.html for client-side routing
+# Fallback for any request that doesn't match a static file
+
+/*    /index.html   200

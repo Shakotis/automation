@@ -13,9 +13,9 @@ SECRET_KEY = os.environ.get('SECRET_KEY')
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',')
 ALLOWED_HOSTS += ['.onrender.com']
 
-# Database - PostgreSQL on Render
+# Database - PostgreSQL on Render or Supabase
 # Handle DATABASE_URL more robustly
-DATABASE_URL = os.environ.get('https://kcixuytszyzgvcybxyym.supabase.co', '')
+DATABASE_URL = os.environ.get('DATABASE_URL', '')
 
 # Check if DATABASE_URL contains placeholder text
 if 'user:password@host:port' in DATABASE_URL or ':port/' in DATABASE_URL:

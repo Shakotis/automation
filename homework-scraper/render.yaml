@@ -1,12 +1,8 @@
 # Render Blueprint Configuration
 # Documentation: https://render.com/docs/blueprint-spec
 
-# Database services must be defined before they're referenced
-databases:
-  - name: homework-scraper-db
-    databaseName: homework_scraper
-    user: homework_user
-    plan: free  # Free tier includes 1GB storage
+# Using Supabase for database instead of Render PostgreSQL
+# Database credentials are set as environment variables below
 
 services:
   # Django Backend Web Service
@@ -47,10 +43,19 @@ services:
       - key: ALLOWED_HOSTS
         value: .onrender.com,api.dovydas.space
       
+      # Database - Using Supabase PostgreSQL
       - key: DATABASE_URL
-        fromDatabase:
-          name: homework-scraper-db
-          property: connectionString
+        sync: false  # Set manually in Render Dashboard for security
+      
+      # Supabase Configuration
+      - key: SUPABASE_URL
+        value: https://kcixuytszyzgvcybxyym.supabase.co
+      
+      - key: SUPABASE_KEY
+        sync: false  # Set manually in Render Dashboard for security
+      
+      - key: SUPABASE_SERVICE_KEY
+        sync: false  # Set manually in Render Dashboard for security
       
       - key: REDIS_URL
         fromService:
@@ -128,10 +133,16 @@ services:
       - key: PYTHON_VERSION
         value: 3.11
       
+      # Database - Using Supabase PostgreSQL
       - key: DATABASE_URL
-        fromDatabase:
-          name: homework-scraper-db
-          property: connectionString
+        sync: false  # Set manually in Render Dashboard
+      
+      # Supabase Configuration
+      - key: SUPABASE_URL
+        value: https://kcixuytszyzgvcybxyym.supabase.co
+      
+      - key: SUPABASE_KEY
+        sync: false
       
       - key: REDIS_URL
         fromService:
@@ -175,10 +186,16 @@ services:
       - key: PYTHON_VERSION
         value: 3.11
       
+      # Database - Using Supabase PostgreSQL
       - key: DATABASE_URL
-        fromDatabase:
-          name: homework-scraper-db
-          property: connectionString
+        sync: false  # Set manually in Render Dashboard
+      
+      # Supabase Configuration
+      - key: SUPABASE_URL
+        value: https://kcixuytszyzgvcybxyym.supabase.co
+      
+      - key: SUPABASE_KEY
+        sync: false
       
       - key: REDIS_URL
         fromService:
