@@ -1,6 +1,8 @@
 // API configuration
-// Use relative path to leverage Next.js API proxy
+// Use environment variable or fall back to relative path
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
+
+console.log('[API] Using API_BASE_URL:', API_BASE_URL);
 
 // Types
 export interface HomeworkItem {

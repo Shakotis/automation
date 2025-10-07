@@ -31,7 +31,7 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-kmem0e9w*1)bvk)_3t$#)
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=lambda v: v.split(','))
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,api.dovydas.space', cast=lambda v: v.split(','))
 
 
 # Application definition
@@ -144,15 +144,17 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:3000",
     "http://localhost:3001",
     "http://127.0.0.1:3001",
+    "https://dovydas.space",
+    "https://www.dovydas.space",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
 
 # Session cookie settings for cross-origin requests
-SESSION_COOKIE_SAMESITE = None  # Allow cross-site cookies for API proxy to work
-SESSION_COOKIE_SECURE = False  # Set to True in production with HTTPS
-SESSION_COOKIE_DOMAIN = None  # None to work with both localhost and 127.0.0.1
-SESSION_COOKIE_HTTPONLY = False  # Allow JavaScript access for Next.js proxy
+SESSION_COOKIE_SAMESITE = 'None'  # Allow cross-site cookies for production
+SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=False, cast=bool)  # True in production with HTTPS
+SESSION_COOKIE_DOMAIN = config('SESSION_COOKIE_DOMAIN', default=None)  # .dovydas.space in production
+SESSION_COOKIE_HTTPONLY = False  # Allow JavaScript access for frontend
 SESSION_COOKIE_NAME = 'sessionid'  # Standard Django session cookie name
 SESSION_COOKIE_PATH = '/'
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Use database-backed sessions
@@ -164,21 +166,15 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:3000",
     "http://localhost:3001",
     "http://127.0.0.1:3001",
+    "https://dovydas.space",
+    "https://www.dovydas.space",
+    "https://api.dovydas.space",
 ]
-CSRF_COOKIE_SAMESITE = None
+CSRF_COOKIE_SAMESITE = 'None'
 CSRF_COOKIE_HTTPONLY = False
-CSRF_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=False, cast=bool)  # True in production
 
-# CORS settings
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost:3001",
-    "http://127.0.0.1:3001",
-]
-
-CORS_ALLOW_CREDENTIALS = True
-
+# Additional CORS settings
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
@@ -204,6 +200,7 @@ REST_FRAMEWORK = {
 # Google OAuth2 settings
 GOOGLE_OAUTH2_CLIENT_ID = config('GOOGLE_OAUTH2_CLIENT_ID', default='')
 GOOGLE_OAUTH2_CLIENT_SECRET = config('GOOGLE_OAUTH2_CLIENT_SECRET', default='')
+GOOGLE_OAUTH_REDIRECT_URI = config('GOOGLE_OAUTH_REDIRECT_URI', default='')  # Set to https://api.dovydas.space/api/auth/google/callback in production
 GOOGLE_OAUTH2_SCOPES = [
     'openid',
     'https://www.googleapis.com/auth/userinfo.email',

@@ -428,14 +428,6 @@ class CredentialManagementView(APIView):
                 request.user.id, site, username, password, additional_data
             )
             
-            # Clear any existing sessions when new credentials are stored
-            try:
-                from .session_manager import ScrapingSessionManager
-                session_manager = ScrapingSessionManager(request.user.id, site)
-                session_manager.clear_session()
-            except Exception as session_error:
-                logger.warning(f"Failed to clear session: {session_error}")
-            
             return Response({
                 'message': 'Credentials stored successfully',
                 'site': site,
@@ -504,14 +496,6 @@ class CredentialManagementView(APIView):
             success = credential_storage.delete_user_credentials(request.user.id, site)
             
             if success:
-                # Clear any saved sessions for this site when credentials are deleted
-                try:
-                    from .session_manager import ScrapingSessionManager
-                    session_manager = ScrapingSessionManager(request.user.id, site)
-                    session_manager.clear_session()
-                except Exception as session_error:
-                    logger.warning(f"Failed to clear session: {session_error}")
-                
                 return Response({
                     'message': 'Credentials deleted successfully',
                     'site': site

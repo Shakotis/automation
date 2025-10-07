@@ -412,8 +412,12 @@ class GoogleOAuthService:
     @staticmethod
     def get_authorization_url(request):
         """Get Google OAuth authorization URL"""
-        # Use backend callback URL for now since frontend URL is not registered in Google Cloud Console
-        backend_callback_url = request.build_absolute_uri('/api/auth/google/callback')
+        # Use production callback URL if available, otherwise build from request
+        # Check if we're in production environment
+        if hasattr(settings, 'GOOGLE_OAUTH_REDIRECT_URI') and settings.GOOGLE_OAUTH_REDIRECT_URI:
+            backend_callback_url = settings.GOOGLE_OAUTH_REDIRECT_URI
+        else:
+            backend_callback_url = request.build_absolute_uri('/api/auth/google/callback')
         
         flow = Flow.from_client_config(
             {
@@ -448,8 +452,11 @@ class GoogleOAuthService:
             raise Exception("Invalid OAuth state")
         
         try:
-            # Use backend callback URL for now since frontend URL is not registered in Google Cloud Console
-            backend_callback_url = request.build_absolute_uri('/api/auth/google/callback')
+            # Use production callback URL if available, otherwise build from request
+            if hasattr(settings, 'GOOGLE_OAUTH_REDIRECT_URI') and settings.GOOGLE_OAUTH_REDIRECT_URI:
+                backend_callback_url = settings.GOOGLE_OAUTH_REDIRECT_URI
+            else:
+                backend_callback_url = request.build_absolute_uri('/api/auth/google/callback')
             
             flow = Flow.from_client_config(
                 {
@@ -472,6 +479,11 @@ class GoogleOAuthService:
         except Exception as fetch_error:
             logger.error(f"Error during token fetch: {str(fetch_error)}")
             # Try alternative approach - create flow without strict scope checking
+            if hasattr(settings, 'GOOGLE_OAUTH_REDIRECT_URI') and settings.GOOGLE_OAUTH_REDIRECT_URI:
+                redirect_uri = settings.GOOGLE_OAUTH_REDIRECT_URI
+            else:
+                redirect_uri = request.build_absolute_uri('/api/auth/google/callback')
+            
             flow = Flow.from_client_config(
                 {
                     "web": {
@@ -479,12 +491,12 @@ class GoogleOAuthService:
                         "client_secret": settings.GOOGLE_OAUTH2_CLIENT_SECRET,
                         "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                         "token_uri": "https://oauth2.googleapis.com/token",
-                        "redirect_uris": [request.build_absolute_uri('/api/auth/google/callback')]
+                        "redirect_uris": [redirect_uri]
                     }
                 },
                 scopes=None  # Don't enforce specific scopes
             )
-            flow.redirect_uri = request.build_absolute_uri('/api/auth/google/callback')
+            flow.redirect_uri = redirect_uri
             flow.fetch_token(code=authorization_code)
         
         credentials = flow.credentials
