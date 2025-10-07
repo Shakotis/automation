@@ -11,19 +11,21 @@ const nextConfig = {
   // Fix workspace root detection
   outputFileTracingRoot: path.join(__dirname, '../'),
   
+  // Output configuration for static export (Netlify compatible)
+  output: 'export',
+  
+  // Disable features not compatible with static export
+  images: {
+    unoptimized: true, // Required for static export
+  },
+  
   // Environment variables
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api',
   },
   
-  // Output configuration for static export (optional)
-  // output: 'export', // Use this for static export if needed
-  
-  // Image optimization (Netlify supports Next.js Image Optimization)
-  images: {
-    domains: ['localhost'],
-    unoptimized: false, // Set to true if you want to disable image optimization
-  },
+  // Trailing slash for better static hosting compatibility
+  trailingSlash: true,
   
   // Netlify-specific optimizations
   eslint: {

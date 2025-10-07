@@ -1,6 +1,13 @@
 # Render Blueprint Configuration
 # Documentation: https://render.com/docs/blueprint-spec
 
+# Database services must be defined before they're referenced
+databases:
+  - name: homework-scraper-db
+    databaseName: homework_scraper
+    user: homework_user
+    plan: free  # Free tier includes 1GB storage
+
 services:
   # Django Backend Web Service
   - type: web
@@ -38,7 +45,7 @@ services:
         generateValue: true  # Render will auto-generate
       
       - key: ALLOWED_HOSTS
-        value: .onrender.com
+        value: .onrender.com,api.dovydas.space
       
       - key: DATABASE_URL
         fromDatabase:
@@ -57,12 +64,12 @@ services:
           name: homework-scraper-redis
           property: connectionString
       
-      # CORS - Add your Netlify URL here
+      # CORS - Custom domains configured
       - key: CORS_ALLOWED_ORIGINS
-        value: https://your-app.netlify.app,http://localhost:3000
+        value: https://nd.dovydas.space,http://localhost:3000
       
       - key: CSRF_TRUSTED_ORIGINS
-        value: https://your-app.netlify.app
+        value: https://nd.dovydas.space,https://api.dovydas.space
       
       # Google OAuth (set in Render Dashboard)
       - key: GOOGLE_OAUTH2_CLIENT_ID
@@ -92,14 +99,6 @@ services:
     #   mountPath: /opt/render/project/src/backend
     #   sizeGB: 1
 
-  # PostgreSQL Database
-  - type: pserv
-    name: homework-scraper-db
-    runtime: postgresql
-    plan: free  # Free tier includes 1GB storage
-    databaseName: homework_scraper
-    databaseUser: homework_user
-    
   # Redis for Celery
   - type: redis
     name: homework-scraper-redis

@@ -5,8 +5,8 @@
   # Build command for Next.js
   command = "npm run build"
   
-  # Directory to publish (Next.js output)
-  publish = ".next"
+  # Directory to publish (Next.js static export or standalone output)
+  publish = "out"
   
   # Base directory for build
   base = "frontend"
@@ -21,12 +21,13 @@
 # Environment variables (set these in Netlify UI for security)
 # NEXT_PUBLIC_API_URL = "https://your-backend.onrender.com"
 
-# Redirect rules for Next.js
+# Redirect rules for Next.js (SPA fallback)
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
   force = false
+  conditions = {Role = [""]}
   
 # API proxy to backend (optional - if you want to proxy API calls through Netlify)
 [[redirects]]

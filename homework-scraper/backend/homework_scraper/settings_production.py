@@ -14,13 +14,31 @@ ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',')
 ALLOWED_HOSTS += ['.onrender.com']
 
 # Database - PostgreSQL on Render
-DATABASES = {
-    'default': dj_database_url.config(
-        default=os.environ.get('DATABASE_URL'),
-        conn_max_age=600,
-        conn_health_checks=True,
+# Handle DATABASE_URL more robustly
+DATABASE_URL = os.environ.get('DATABASE_URL', '')
+
+# Check if DATABASE_URL is properly set
+if not DATABASE_URL or DATABASE_URL == '' or 'postgresql://' not in DATABASE_URL:
+    raise ValueError(
+        "DATABASE_URL environment variable is not properly set. "
+        "Please configure it in Render Dashboard with format: "
+        "postgresql://user:password@host:port/database"
     )
-}
+
+try:
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
+    }
+except ValueError as e:
+    raise ValueError(
+        f"Failed to parse DATABASE_URL: {str(e)}. "
+        f"Check that your DATABASE_URL is properly formatted. "
+        f"Current value starts with: {DATABASE_URL[:30]}..."
+    )
 
 # Static files with WhiteNoise
 MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
