@@ -69,12 +69,12 @@ services:
           name: homework-scraper-redis
           property: connectionString
       
-      # CORS - Custom domains configured
+      # CORS - Custom domains configured (leave empty to use settings_production.py defaults)
       - key: CORS_ALLOWED_ORIGINS
-        value: https://nd.dovydas.space,http://localhost:3000
+        sync: false  # Set in Render Dashboard if needed, otherwise uses code defaults
       
       - key: CSRF_TRUSTED_ORIGINS
-        value: https://nd.dovydas.space,https://api.dovydas.space
+        sync: false  # Set in Render Dashboard if needed, otherwise uses code defaults
       
       # Google OAuth (set in Render Dashboard)
       - key: GOOGLE_OAUTH2_CLIENT_ID
