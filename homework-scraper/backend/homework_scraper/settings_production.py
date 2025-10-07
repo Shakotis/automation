@@ -13,7 +13,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY')
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',')
 ALLOWED_HOSTS += ['.onrender.com']
 
-# Database - PostgreSQL on Render or Supabase
+# Database - PostgreSQL on Supabase
 # Handle DATABASE_URL more robustly
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 
@@ -21,15 +21,13 @@ DATABASE_URL = os.environ.get('DATABASE_URL', '')
 if 'user:password@host:port' in DATABASE_URL or ':port/' in DATABASE_URL:
     raise ValueError(
         "DATABASE_URL contains placeholder text! "
-        "This means the database service is not linked properly in Render. "
+        "This means the database is not properly configured. "
         "\n\n"
         "SOLUTION:\n"
-        "1. Wait for the database service 'homework-scraper-db' to finish provisioning\n"
-        "2. The web service should automatically redeploy once database is ready\n"
-        "3. If this persists, manually link the database:\n"
-        "   - Go to web service → Environment\n"
-        "   - DATABASE_URL should reference the database service\n"
-        "   - Or manually copy the connection string from the database service\n"
+        "1. Go to Render Dashboard → Your service → Environment\n"
+        "2. Add environment variable: DATABASE_URL\n"
+        "3. Use your Supabase connection string:\n"
+        "   postgresql://postgres:3BH6CyUl5OpWDqtD@db.kcixuytszyzgvcybxyym.supabase.co:5432/postgres\n"
         "\n"
         f"Current DATABASE_URL: {DATABASE_URL[:80]}..."
     )
@@ -38,10 +36,16 @@ if 'user:password@host:port' in DATABASE_URL or ':port/' in DATABASE_URL:
 if not DATABASE_URL or DATABASE_URL == '':
     raise ValueError(
         "DATABASE_URL environment variable is not set. "
-        "Please ensure the database service is created and linked in render.yaml"
+        "\n\n"
+        "SOLUTION:\n"
+        "1. Go to Render Dashboard → Your service → Environment\n"
+        "2. Click 'Add Environment Variable'\n"
+        "3. Key: DATABASE_URL\n"
+        "4. Value: postgresql://postgres:3BH6CyUl5OpWDqtD@db.kcixuytszyzgvcybxyym.supabase.co:5432/postgres\n"
+        "5. Click 'Save Changes' to trigger rebuild\n"
     )
 
-if 'postgresql://' not in DATABASE_URL:
+if 'postgresql://' not in DATABASE_URL and 'postgres://' not in DATABASE_URL:
     raise ValueError(
         f"DATABASE_URL must be a PostgreSQL connection string. "
         f"Current value: {DATABASE_URL[:50]}..."
@@ -53,6 +57,7 @@ try:
             default=DATABASE_URL,
             conn_max_age=600,
             conn_health_checks=True,
+            ssl_require=True,  # Supabase requires SSL
         )
     }
 except ValueError as e:
