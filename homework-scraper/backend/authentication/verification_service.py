@@ -273,105 +273,101 @@ class CredentialVerificationService:
             return False, f"Verification error: {str(e)}"
     
     def verify_manodienynas_credentials(self, username, password, url=None):
-        """Verify Manodienynas.lt credentials using fast requests-based login"""
+        """Verify Manodienynas.lt credentials using Playwright (more reliable than requests)"""
         try:
             if not username or not password:
                 return False, "Username and password are required"
             
-            logger.info(f"Verifying Manodienynas credentials using requests method...")
+            logger.info(f"Verifying Manodienynas credentials using Playwright...")
             
-            # Use the same fast requests-based login from production scraper
-            import requests
-            session = requests.Session()
-            
-            # Try with different user agents if we get blocked
-            user_agents = [
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0',
-                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            ]
-            
-            last_error = None
-            for user_agent in user_agents:
+            # Use Playwright for better bot detection evasion
+            with sync_playwright() as p:
+                browser, context = self._setup_browser_context(p, headless=True)
+                page = context.new_page()
+                
                 try:
-                    session.headers.update({
-                        'User-Agent': user_agent,
-                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-                        'Accept-Language': 'en-US,en;q=0.5',
-                        'Accept-Encoding': 'gzip, deflate, br',
-                        'Connection': 'keep-alive',
-                        'Upgrade-Insecure-Requests': '1',
-                        'Sec-Fetch-Dest': 'document',
-                        'Sec-Fetch-Mode': 'navigate',
-                        'Sec-Fetch-Site': 'none',
-                        'Sec-Fetch-User': '?1',
-                    })
-                    
-                    # First, visit the login page to establish session
+                    # Visit the login page
                     login_url = url or 'https://www.manodienynas.lt/1/lt/public/public/login'
-                    response = session.get(login_url, timeout=15)
+                    logger.info(f"Navigating to {login_url}")
                     
-                    if response.status_code == 403:
-                        logger.warning(f"Got 403 with user agent: {user_agent[:50]}...")
-                        last_error = f"Access denied (403) - site may be blocking automated requests"
-                        continue  # Try next user agent
+                    response = page.goto(login_url, timeout=30000, wait_until='networkidle')
                     
-                    if response.status_code != 200:
-                        last_error = f"Failed to reach login page (status {response.status_code})"
-                        continue
+                    if not response or response.status == 403:
+                        logger.warning("Got 403 error from Manodienynas")
+                        return False, "Access denied - site may be temporarily blocking requests. Please try again in a few minutes."
                     
-                    # Submit login to AJAX endpoint (same as production scraper)
-                    ajax_login_url = 'https://www.manodienynas.lt/1/lt/ajax/user/login'
-                    login_data = {
-                        'username': username,
-                        'password': password,
-                    }
+                    if not response or response.status != 200:
+                        logger.warning(f"Got status {response.status if response else 'None'} from Manodienynas")
+                        return False, f"Failed to reach login page (status {response.status if response else 'unknown'})"
                     
-                    login_response = session.post(ajax_login_url, data=login_data, timeout=15)
+                    logger.info("Login page loaded successfully")
                     
-                    if login_response.status_code != 200:
-                        last_error = f"Login request failed (status {login_response.status_code})"
-                        continue
-                    
-                    # Check response for success/failure
+                    # Wait for login form to be visible
                     try:
-                        response_data = login_response.json()
+                        page.wait_for_selector('input[name="username"]', timeout=10000)
+                    except PlaywrightTimeoutError:
+                        logger.error("Login form not found on page")
+                        return False, "Login form not found - site structure may have changed"
+                    
+                    # Fill in credentials
+                    logger.info("Filling in credentials")
+                    page.fill('input[name="username"]', username)
+                    page.fill('input[name="password"]', password)
+                    
+                    # Submit the form
+                    logger.info("Submitting login form")
+                    page.click('button[type="submit"]')
+                    
+                    # Wait for response (either success or error)
+                    try:
+                        # Wait for navigation or error message
+                        page.wait_for_timeout(3000)
                         
-                        # Check if login was successful (no error message)
-                        if response_data.get('success') == False or response_data.get('error'):
-                            error_msg = response_data.get('message', 'Invalid credentials')
-                            return False, f"Login failed: {error_msg}"
+                        # Check current URL and page content
+                        current_url = page.url
+                        page_content = page.content().lower()
                         
-                        # If we got here, login was successful
-                        logger.info("Manodienynas credentials verified successfully")
-                        return True, "Credentials verified successfully"
+                        logger.info(f"After login - URL: {current_url}")
                         
-                    except ValueError:
-                        # Response wasn't JSON, check if we got redirected or got HTML
-                        response_text = login_response.text.lower()
+                        # Check for success indicators
+                        if '/dashboard' in current_url or '/home' in current_url:
+                            logger.info("Login successful - redirected to dashboard")
+                            return True, "Credentials verified successfully"
                         
-                        # Check for error indicators in response
-                        if 'error' in response_text or 'invalid' in response_text:
+                        # Check for error messages in the page
+                        error_indicators = [
+                            'neteisingas',  # Lithuanian for "incorrect"
+                            'klaida',       # Lithuanian for "error"
+                            'invalid',
+                            'error',
+                            'failed'
+                        ]
+                        
+                        has_error = any(indicator in page_content for indicator in error_indicators)
+                        
+                        if has_error:
+                            logger.warning("Login failed - error message found on page")
                             return False, "Invalid username or password"
                         
-                        # If no errors, assume success
-                        logger.info("Manodienynas credentials verified successfully (non-JSON response)")
+                        # Check if we're still on login page
+                        if '/login' in current_url:
+                            logger.warning("Still on login page after submission")
+                            return False, "Login failed - please check your credentials"
+                        
+                        # If we get here and no errors, assume success
+                        logger.info("Login appears successful")
                         return True, "Credentials verified successfully"
+                        
+                    except PlaywrightTimeoutError:
+                        logger.error("Timeout waiting for login response")
+                        return False, "Login verification timed out - please try again"
                     
-                except requests.RequestException as retry_error:
-                    logger.warning(f"Request failed with user agent {user_agent[:50]}: {str(retry_error)}")
-                    last_error = f"Network error: {str(retry_error)}"
-                    continue  # Try next user agent
-            
-            # If we get here, all user agents failed
-            if last_error:
-                return False, last_error
-            else:
-                return False, "Verification failed - all retry attempts exhausted"
-            
-        except requests.RequestException as e:
-            logger.error(f"Network error during Manodienynas verification: {str(e)}")
-            return False, f"Network error: {str(e)}"
+                finally:
+                    browser.close()
+                    
+        except PlaywrightTimeoutError as e:
+            logger.error(f"Playwright timeout during Manodienynas verification: {str(e)}")
+            return False, "Verification timed out - site may be slow or unreachable"
         except Exception as e:
             logger.error(f"Error verifying Manodienynas credentials: {str(e)}")
             import traceback

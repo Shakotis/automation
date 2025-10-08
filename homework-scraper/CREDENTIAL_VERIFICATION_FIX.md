@@ -78,6 +78,17 @@ Added `DJANGO_SETTINGS_MODULE` environment variable to all services:
 
 ## Testing Recommendations
 
+### Update (October 8, 2025 - 19:18 UTC)
+**Status**: Initial fix deployed successfully! ✅
+- CORS errors are now fixed - frontend can read error messages
+- 403 errors are properly handled without crashing the API
+- However, Manodienynas.lt is still blocking `requests` library
+
+**Additional Fix Applied**: Switched from `requests` library to **Playwright** for Manodienynas verification
+- Playwright mimics a real browser much better than requests
+- Passes Cloudflare and bot detection more reliably
+- Same approach used by production scraper
+
 ### 1. Test Credential Verification
 ```bash
 # Test with valid credentials
