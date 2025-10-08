@@ -12,6 +12,10 @@ import { Spinner } from "@heroui/spinner";
 import { Select, SelectItem } from "@heroui/select";
 import { title } from "@/components/primitives";
 
+// Get API base URL from environment
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
+console.log('[Settings] Using API_BASE_URL:', API_BASE_URL);
+
 interface UserPreferences {
   enable_manodienynas: boolean;
   enable_eduka: boolean;
@@ -96,7 +100,7 @@ export default function SettingsPage() {
   const fetchUserData = async () => {
     try {
       // Try to fetch real user profile from the API
-      const response = await fetch('/api/auth/user', {
+      const response = await fetch(`${API_BASE_URL}/auth/user`, {
         credentials: 'include',
       });
       
@@ -105,7 +109,7 @@ export default function SettingsPage() {
         setUserProfile(data.user);
         
         // Fetch preferences
-        const prefResponse = await fetch('/api/scraper/preferences', {
+        const prefResponse = await fetch(`${API_BASE_URL}/scraper/preferences`, {
           credentials: 'include',
         });
         
@@ -149,7 +153,7 @@ export default function SettingsPage() {
 
   const fetchCredentials = async () => {
     try {
-      const response = await fetch('/api/auth/credentials', {
+      const response = await fetch(`${API_BASE_URL}/auth/credentials`, {
         credentials: 'include',
       });
       
@@ -165,7 +169,7 @@ export default function SettingsPage() {
   const handleSaveCredential = async (site: string, username: string, password: string) => {
     setSavingCredential(site);
     try {
-      const response = await fetch('/api/auth/credentials', {
+      const response = await fetch(`${API_BASE_URL}/auth/credentials`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -231,7 +235,7 @@ export default function SettingsPage() {
     
     const verifyPromise = (async () => {
       try {
-        const response = await fetch('/api/auth/verify-credentials', {
+        const response = await fetch(`${API_BASE_URL}/auth/verify-credentials`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -297,7 +301,7 @@ export default function SettingsPage() {
   const handleSavePreferences = async () => {
     setSaving(true);
     try {
-      const response = await fetch('/api/scraper/preferences/', {
+      const response = await fetch(`${API_BASE_URL}/scraper/preferences`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

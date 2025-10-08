@@ -2,6 +2,10 @@
 
 import { useState } from 'react';
 
+// Get API base URL from environment
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
+console.log('[Test API] Using API_BASE_URL:', API_BASE_URL);
+
 export default function TestAPIPage() {
   const [result, setResult] = useState<string>('');
   const [loading, setLoading] = useState(false);
@@ -12,7 +16,7 @@ export default function TestAPIPage() {
     
     try {
       console.log('Starting fetch test...');
-      const response = await fetch('/api/auth/google/login/', {
+      const response = await fetch(`${API_BASE_URL}/auth/google/login`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',

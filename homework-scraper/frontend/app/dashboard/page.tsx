@@ -11,6 +11,10 @@ import { Switch } from "@heroui/switch";
 import { addToast } from "@heroui/toast";
 import { title } from "@/components/primitives";
 
+// Get API base URL from environment
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
+console.log('[Dashboard] Using API_BASE_URL:', API_BASE_URL);
+
 interface HomeworkItem {
   id: number;
   title: string;
@@ -56,7 +60,7 @@ export default function DashboardPage() {
       setError(null);
       
       // Fetch stats
-      const statsResponse = await fetch('/api/scraper/stats/', {
+      const statsResponse = await fetch(`${API_BASE_URL}/scraper/stats`, {
         credentials: 'include', // Include cookies for authentication
       });
       
@@ -82,7 +86,7 @@ export default function DashboardPage() {
       }
 
       // Fetch homework based on filter
-      let homeworkUrl = '/api/scraper/homework/';
+      let homeworkUrl = `${API_BASE_URL}/scraper/homework`;
       const params = new URLSearchParams();
       
       if (showDeleted) {
@@ -145,7 +149,7 @@ export default function DashboardPage() {
     setError(null);
     try {
       // First, check if user has credentials before attempting to scrape
-      const credResponse = await fetch('/api/auth/credentials', {
+      const credResponse = await fetch(`${API_BASE_URL}/auth/credentials`, {
         credentials: 'include',
       });
       
@@ -179,7 +183,7 @@ export default function DashboardPage() {
       // Now proceed with scraping
       const scrapePromise = (async () => {
         try {
-          const response = await fetch('/api/scraper/homework/scrape', {
+          const response = await fetch(`${API_BASE_URL}/scraper/homework/scrape`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -256,7 +260,7 @@ export default function DashboardPage() {
 
   const handleToggleComplete = async (homeworkId: number, currentStatus: boolean) => {
     try {
-      const response = await fetch(`/api/scraper/homework/${homeworkId}/complete/`, {
+      const response = await fetch(`${API_BASE_URL}/scraper/homework/${homeworkId}/complete`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

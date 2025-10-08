@@ -11,6 +11,10 @@ import { GoogleIcon, TaskIcon, ScrapingIcon } from "@/components/icons";
 import GoogleSignInButton from "@/components/GoogleSignInButton";
 import { authAPI } from "@/lib/api";
 
+// Get API base URL from environment
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
+console.log('[Home] Using API_BASE_URL:', API_BASE_URL);
+
 interface UserProfile {
   id: number;
   email: string;
@@ -105,7 +109,7 @@ export default function Home() {
   const fetchRealHomework = async () => {
     try {
       setLoadingHomework(true);
-      const response = await fetch('/api/scraper/homework/?status=upcoming', {
+      const response = await fetch(`${API_BASE_URL}/scraper/homework?status=upcoming`, {
         credentials: 'include',
       });
       if (response.ok) {

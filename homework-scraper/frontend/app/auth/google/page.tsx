@@ -7,6 +7,10 @@ import { Spinner } from "@heroui/spinner";
 import { GoogleIcon } from "@/components/icons";
 import { title, subtitle } from "@/components/primitives";
 
+// Get API base URL from environment
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
+console.log('[Auth Google] Using API_BASE_URL:', API_BASE_URL);
+
 export default function AuthGooglePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +56,7 @@ export default function AuthGooglePage() {
     setError(null);
     
     try {
-      const response = await fetch('/api/auth/google/login/');
+      const response = await fetch(`${API_BASE_URL}/auth/google/login`);
       const data = await response.json();
 
       if (response.ok && data.authorization_url) {
