@@ -341,53 +341,54 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className={title()}>Homework</h1>
+    <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-7xl">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+        <h1 className={title({ size: "sm" })}>Homework</h1>
         <Button
           color="primary"
           onPress={handleScrapeNow}
           isLoading={scraping}
           disabled={scraping}
+          className="w-full sm:w-auto"
         >
           {scraping ? 'Scraping...' : 'Scrape Now'}
         </Button>
       </div>
 
       {error && (
-        <Card className="mb-6 border-danger">
+        <Card className="mb-6 bg-danger-50 border-danger-200">
           <CardBody>
-            <p className="text-danger">{error}</p>
+            <p className="text-danger-700">{error}</p>
           </CardBody>
         </Card>
       )}
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
-        <Card className="hover:scale-105 transition-transform">
-          <CardBody className="text-center py-6">
-            <div className="text-4xl font-bold text-primary mb-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8">
+        <Card className="hover:shadow-lg transition-shadow">
+          <CardBody className="text-center py-4 sm:py-6">
+            <div className="text-3xl sm:text-4xl font-bold text-primary mb-1 sm:mb-2">
               {stats?.total_homework || 0}
             </div>
-            <div className="text-sm text-default-500">This Week</div>
+            <div className="text-xs sm:text-sm text-default-500">This Week</div>
           </CardBody>
         </Card>
 
-        <Card className="hover:scale-105 transition-transform">
-          <CardBody className="text-center py-6">
-            <div className="text-4xl font-bold text-warning mb-2">
+        <Card className="hover:shadow-lg transition-shadow">
+          <CardBody className="text-center py-4 sm:py-6">
+            <div className="text-3xl sm:text-4xl font-bold text-warning mb-1 sm:mb-2">
               {stats?.pending_homework || 0}
             </div>
-            <div className="text-sm text-default-500">Pending</div>
+            <div className="text-xs sm:text-sm text-default-500">Pending</div>
           </CardBody>
         </Card>
 
-        <Card className="hover:scale-105 transition-transform">
-          <CardBody className="text-center py-6">
-            <div className="text-4xl font-bold text-success mb-2">
+        <Card className="col-span-2 sm:col-span-1 hover:shadow-lg transition-shadow">
+          <CardBody className="text-center py-4 sm:py-6">
+            <div className="text-3xl sm:text-4xl font-bold text-success mb-1 sm:mb-2">
               {stats?.completed_homework || 0}
             </div>
-            <div className="text-sm text-default-500">Completed</div>
+            <div className="text-xs sm:text-sm text-default-500">Completed</div>
           </CardBody>
         </Card>
       </div>
@@ -396,13 +397,13 @@ export default function DashboardPage() {
       {stats && stats.tomorrow_total > 0 && (
         <Card className="mb-8">
           <CardHeader>
-            <h3 className="text-lg font-semibold">Tomorrow's Tasks Completion</h3>
+            <h3 className="text-base sm:text-lg font-semibold">Tomorrow's Tasks Completion</h3>
           </CardHeader>
           <CardBody>
             <div>
               <div className="flex justify-between items-center mb-2">
-                <span className="text-sm">Completion Rate (Tomorrow)</span>
-                <span className="text-sm text-default-500">
+                <span className="text-xs sm:text-sm">Completion Rate (Tomorrow)</span>
+                <span className="text-xs sm:text-sm text-default-500">
                   {stats.completed_homework}/{stats.tomorrow_total} ({Math.round((stats.completed_homework / stats.tomorrow_total) * 100)}%)
                 </span>
               </div>
@@ -420,7 +421,6 @@ export default function DashboardPage() {
       <div className="flex gap-2 mb-6 flex-wrap items-center">
         <Button
           size="sm"
-          color={filter === 'all' && !showDeleted ? 'primary' : 'default'}
           variant={filter === 'all' && !showDeleted ? 'solid' : 'bordered'}
           onPress={() => { setFilter('all'); setShowDeleted(false); }}
         >
@@ -428,7 +428,6 @@ export default function DashboardPage() {
         </Button>
         <Button
           size="sm"
-          color={filter === 'upcoming' ? 'success' : 'default'}
           variant={filter === 'upcoming' ? 'solid' : 'bordered'}
           onPress={() => { setFilter('upcoming'); setShowDeleted(false); }}
         >
@@ -436,31 +435,31 @@ export default function DashboardPage() {
         </Button>
         <Button
           size="sm"
-          color={filter === 'completed' ? 'success' : 'default'}
           variant={filter === 'completed' ? 'solid' : 'bordered'}
           onPress={() => { setFilter('completed'); setShowDeleted(false); }}
         >
           Completed ({stats?.completed_homework || 0})
         </Button>
         
-        <Switch
-          isSelected={showDeleted}
-          onValueChange={(checked) => {
-            setShowDeleted(checked);
-            if (checked) {
-              setFilter('all');
-            }
-          }}
-          size="sm"
-          color="danger"
-        >
-          Show Deleted
-        </Switch>
+        <div className="flex items-center gap-2 ml-auto">
+          <span className="text-sm text-default-600">Show Deleted</span>
+          <Switch
+            isSelected={showDeleted}
+            onValueChange={(checked) => {
+              setShowDeleted(checked);
+              if (checked) {
+                setFilter('all');
+              }
+            }}
+            size="sm"
+            color="danger"
+          />
+        </div>
       </div>
 
       {/* Homework List */}
       <Card>
-        <CardHeader className="flex justify-between items-center">
+        <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
           <h3 className="text-lg font-semibold">
             {showDeleted && 'Deleted Tasks'}
             {!showDeleted && filter === 'all' && 'This Week\'s Homework'}
@@ -474,8 +473,12 @@ export default function DashboardPage() {
           )}
         </CardHeader>
         <CardBody>
-          {homework.length === 0 ? (
-            <div className="text-center py-12 text-default-400">
+          {loading && homework.length === 0 ? (
+            <div className="text-center py-12">
+              <Spinner />
+            </div>
+          ) : homework.length === 0 ? (
+            <div className="text-center py-12 text-default-500">
               <p className="text-lg mb-2">No homework found</p>
               <p className="text-sm">
                 {filter !== 'all' 
@@ -484,85 +487,73 @@ export default function DashboardPage() {
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {homework.length === 0 ? (
-                <div className="text-center py-12">
-                  <p className="text-2xl font-semibold text-default-400 mb-2">
-                    No homework left
-                  </p>
-                  <p className="text-default-500">
-                    {showDeleted 
-                      ? "No deleted tasks to show"
-                      : "Great job! You're all caught up! 🎉"
-                    }
-                  </p>
-                </div>
-              ) : (
-                homework.map((item, index) => (
-                <div key={item.id} className={`p-4 rounded-lg border ${item.completed ? 'bg-default-50 opacity-70' : 'bg-default-100'} hover:bg-default-200 transition-all`}>
-                  <div className="flex items-start gap-4">
-                    <div className="pt-1">
-                      <input
-                        type="checkbox"
-                        checked={item.completed}
-                        onChange={() => handleToggleComplete(item.id, item.completed)}
-                        className="w-5 h-5 rounded cursor-pointer"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <h4 className={`font-semibold text-lg ${item.completed ? 'line-through text-default-400' : ''}`}>
-                          {item.title}
-                        </h4>
-                        <div className="flex gap-2 flex-shrink-0">
+            <div className="space-y-4">
+              {homework.map((item) => (
+                <Card key={item.id} className={`transition-all ${item.completed ? 'bg-default-50 opacity-80' : 'bg-transparent'}`}>
+                  <CardBody>
+                    <div className="flex items-start gap-3 sm:gap-4">
+                      <div className="pt-1">
+                        <input
+                          type="checkbox"
+                          checked={item.completed}
+                          onChange={() => handleToggleComplete(item.id, item.completed)}
+                          className="w-5 h-5 rounded-full cursor-pointer focus:ring-2 focus:ring-primary"
+                          aria-label={`Mark ${item.title} as ${item.completed ? 'incomplete' : 'complete'}`}
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
+                          <h4 className={`font-semibold text-base sm:text-lg ${item.completed ? 'line-through text-default-500' : ''}`}>
+                            {item.title}
+                          </h4>
+                          <div className="flex gap-2 flex-shrink-0">
+                            <Chip
+                              size="sm"
+                              color={getSiteColor(item.site)}
+                              variant="flat"
+                            >
+                              {item.site}
+                            </Chip>
+                            {item.synced_to_google_tasks && (
+                              <Chip size="sm" color="success" variant="flat">
+                                ✓ Synced
+                              </Chip>
+                            )}
+                          </div>
+                        </div>
+                        <p className={`text-sm mb-3 ${item.completed ? 'text-default-400' : 'text-default-600'}`}>
+                          {item.description}
+                        </p>
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
                           <Chip
                             size="sm"
-                            color={getSiteColor(item.site)}
                             variant="flat"
+                            color="default"
                           >
-                            {item.site}
+                            📚 {item.subject}
                           </Chip>
-                          {item.synced_to_google_tasks && (
-                            <Chip size="sm" color="success" variant="flat">
-                              ✓ Synced
+                          <Chip
+                            size="sm"
+                            variant="flat"
+                            color={getDueDateColor(item.due_date, item.completed)}
+                          >
+                            📅 {formatDate(item.due_date)}
+                          </Chip>
+                          {item.completed && item.completed_at && (
+                            <Chip
+                              size="sm"
+                              variant="flat"
+                              color="success"
+                            >
+                              ✓ Completed {new Date(item.completed_at).toLocaleDateString('lt-LT')}
                             </Chip>
                           )}
                         </div>
                       </div>
-                      <p className={`text-sm mb-3 ${item.completed ? 'text-default-400' : 'text-default-600'}`}>
-                        {item.description}
-                      </p>
-                      <div className="flex items-center gap-4 text-xs flex-wrap">
-                        <Chip
-                          size="sm"
-                          variant="flat"
-                          color="default"
-                        >
-                          📚 {item.subject}
-                        </Chip>
-                        <Chip
-                          size="sm"
-                          variant="flat"
-                          color={getDueDateColor(item.due_date, item.completed)}
-                        >
-                          📅 {formatDate(item.due_date)}
-                        </Chip>
-                        {item.completed && item.completed_at && (
-                          <Chip
-                            size="sm"
-                            variant="flat"
-                            color="success"
-                          >
-                            ✓ Completed {new Date(item.completed_at).toLocaleDateString('lt-LT')}
-                          </Chip>
-                        )}
-                      </div>
                     </div>
-                  </div>
-                  {index < homework.length - 1 && <Divider className="mt-4" />}
-                </div>
-              ))
-              )}
+                  </CardBody>
+                </Card>
+              ))}
             </div>
           )}
         </CardBody>

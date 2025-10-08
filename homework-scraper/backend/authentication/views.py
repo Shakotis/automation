@@ -406,8 +406,12 @@ class CredentialManagementView(APIView):
             })
             
         except Exception as e:
+            import traceback
+            logger.error(f"Error in CredentialManagementView GET: {str(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return Response({
-                'error': f'Failed to retrieve credentials: {str(e)}'
+                'error': f'Failed to retrieve credentials: {str(e)}',
+                'details': 'Check server logs for more information'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     def post(self, request):

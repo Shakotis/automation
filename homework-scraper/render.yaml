@@ -44,6 +44,9 @@ services:
         value: .onrender.com,api.dovydas.space
       
       # Database - Using Supabase PostgreSQL
+      # IMPORTANT: Use Session pooler (port 6543) for Django, NOT Transaction pooler (port 5432)
+      # Format: postgresql://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres
+      # Get from: Supabase Dashboard → Settings → Database → Connection string (Session pooler)
       - key: DATABASE_URL
         sync: false  # Set manually in Render Dashboard for security
       
@@ -97,9 +100,11 @@ services:
       - key: SUPABASE_KEY
         sync: false
       
-      # Encryption key for credentials
+      # Encryption key for credentials (MUST be a valid Fernet key)
+      # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+      # Set this manually in Render Dashboard
       - key: ENCRYPTION_KEY
-        generateValue: true
+        sync: false
       
       # Playwright (if needed)
       - key: PLAYWRIGHT_BROWSERS_PATH
@@ -141,6 +146,8 @@ services:
         value: 3.11
       
       # Database - Using Supabase PostgreSQL
+      # IMPORTANT: Use Session pooler (port 6543) for Django
+      # Get from: Supabase Dashboard → Settings → Database → Connection string (Session pooler)
       - key: DATABASE_URL
         sync: false  # Set manually in Render Dashboard
       
@@ -194,6 +201,8 @@ services:
         value: 3.11
       
       # Database - Using Supabase PostgreSQL
+      # IMPORTANT: Use Session pooler (port 6543) for Django
+      # Get from: Supabase Dashboard → Settings → Database → Connection string (Session pooler)
       - key: DATABASE_URL
         sync: false  # Set manually in Render Dashboard
       

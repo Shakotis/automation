@@ -24,40 +24,57 @@ class SecureCredentialStorage:
         """Get or create encryption key from environment or generate new one"""
         if hasattr(settings, 'ENCRYPTION_KEY') and settings.ENCRYPTION_KEY:
             # Use key from settings
-            return settings.ENCRYPTION_KEY.encode()
+            key_str = settings.ENCRYPTION_KEY
+            # Ensure it's a valid Fernet key (44 bytes base64 encoded)
+            try:
+                # If it's already bytes, decode it
+                if isinstance(key_str, bytes):
+                    return key_str
+                # If it's a string, encode it
+                key_bytes = key_str.encode()
+                # Validate it's a valid Fernet key by trying to create a Fernet instance
+                Fernet(key_bytes)
+                return key_bytes
+            except Exception as e:
+                logger.warning(f"Invalid ENCRYPTION_KEY format, generating new one: {str(e)}")
         
-        # Generate new key and save to .env file
+        # Generate new key
+        logger.warning("No valid ENCRYPTION_KEY found in settings, generating a new one")
         key = Fernet.generate_key()
         
-        # Try to save to .env file
+        # Try to save to .env file (only works in development)
         try:
             env_path = os.path.join(settings.BASE_DIR.parent, '.env')
             
-            # Read existing .env
-            env_content = ""
-            if os.path.exists(env_path):
+            # Only try to write if the file exists and is writable
+            if os.path.exists(env_path) and os.access(env_path, os.W_OK):
+                # Read existing .env
                 with open(env_path, 'r') as f:
                     env_content = f.read()
-            
-            # Add or update ENCRYPTION_KEY
-            if 'ENCRYPTION_KEY=' in env_content:
-                lines = env_content.split('\n')
-                for i, line in enumerate(lines):
-                    if line.startswith('ENCRYPTION_KEY='):
-                        lines[i] = f'ENCRYPTION_KEY={key.decode()}'
-                        break
-                env_content = '\n'.join(lines)
-            else:
-                env_content += f'\nENCRYPTION_KEY={key.decode()}\n'
-            
-            # Write back to .env
-            with open(env_path, 'w') as f:
-                f.write(env_content)
                 
-            logger.info("Generated and saved new encryption key")
-            
+                # Add or update ENCRYPTION_KEY
+                if 'ENCRYPTION_KEY=' in env_content:
+                    lines = env_content.split('\n')
+                    for i, line in enumerate(lines):
+                        if line.startswith('ENCRYPTION_KEY='):
+                            lines[i] = f'ENCRYPTION_KEY={key.decode()}'
+                            break
+                    env_content = '\n'.join(lines)
+                else:
+                    env_content += f'\nENCRYPTION_KEY={key.decode()}\n'
+                
+                # Write back to .env
+                with open(env_path, 'w') as f:
+                    f.write(env_content)
+                    
+                logger.info("Generated and saved new encryption key to .env file")
+            else:
+                logger.warning("Cannot write to .env file (production environment). Set ENCRYPTION_KEY environment variable.")
+                logger.warning(f"Generated key (save this): {key.decode()}")
+                
         except Exception as e:
             logger.warning(f"Could not save encryption key to .env: {str(e)}")
+            logger.warning(f"Generated key (save this): {key.decode()}")
         
         return key
     
@@ -156,12 +173,16 @@ class SecureCredentialStorage:
                     }
                 except Exception as e:
                     logger.error(f"Error decrypting credentials for {credential.site}: {str(e)}")
+                    # Skip this credential but continue with others
                     continue
             
             return result
             
         except Exception as e:
             logger.error(f"Error getting all credentials for user {user_id}: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            # Return empty dict instead of raising to avoid 500 errors
             return {}
     
     def update_credential_verification(self, user_id: int, site: str, is_verified: bool):

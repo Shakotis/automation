@@ -26,8 +26,10 @@ if 'user:password@host:port' in DATABASE_URL or ':port/' in DATABASE_URL:
         "SOLUTION:\n"
         "1. Go to Render Dashboard → Your service → Environment\n"
         "2. Add environment variable: DATABASE_URL\n"
-        "3. Use your Supabase connection string:\n"
-        "   postgresql://postgres:3BH6CyUl5OpWDqtD@db.kcixuytszyzgvcybxyym.supabase.co:5432/postgres\n"
+        "3. Use your Supabase connection string with DIRECT connection (port 5432):\n"
+        "   postgresql://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:5432/postgres\n"
+        "   OR use Session Pooler (port 6543):\n"
+        "   postgresql://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres\n"
         "\n"
         f"Current DATABASE_URL: {DATABASE_URL[:80]}..."
     )
@@ -41,7 +43,8 @@ if not DATABASE_URL or DATABASE_URL == '':
         "1. Go to Render Dashboard → Your service → Environment\n"
         "2. Click 'Add Environment Variable'\n"
         "3. Key: DATABASE_URL\n"
-        "4. Value: postgresql://postgres:3BH6CyUl5OpWDqtD@db.kcixuytszyzgvcybxyym.supabase.co:5432/postgres\n"
+        "4. Value: Get from Supabase Dashboard → Settings → Database → Session pooler (port 6543)\n"
+        "   Format: postgresql://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres\n"
         "5. Click 'Save Changes' to trigger rebuild\n"
     )
 
@@ -59,48 +62,35 @@ try:
         ssl_require=True,  # Supabase requires SSL
     )
     
-    # Force IPv4 to avoid "Network is unreachable" errors on Render
-    # Render's build environment doesn't support IPv6
-    # Solution: Resolve the hostname to IPv4 and use hostaddr parameter
-    import socket
+    # Supabase connection options
+    # Important: Supabase Pooler has two modes:
+    # - Port 6543: Session mode (pgBouncer) - recommended for Django
+    # - Port 5432: Transaction mode - may have connection issues
+    # If you're getting "Connection refused" on port 5432, switch to port 6543
     
-    # Extract hostname from the database config
     db_host = db_config.get('HOST', '')
+    db_port = db_config.get('PORT', '')
     
-    if db_host and 'supabase.co' in db_host:
-        try:
-            # Try to get IPv4 address only
-            ipv4_addresses = [
-                addr[4][0] for addr in socket.getaddrinfo(
-                    db_host, None, socket.AF_INET, socket.SOCK_STREAM
-                )
-            ]
-            if ipv4_addresses:
-                # Use the first IPv4 address
-                db_config['OPTIONS'] = {
-                    'sslmode': 'require',
-                    'connect_timeout': 10,
-                    'hostaddr': ipv4_addresses[0],  # Force IPv4 address
-                }
-                print(f"✓ Resolved {db_host} to IPv4: {ipv4_addresses[0]}")
-            else:
-                print(f"⚠ No IPv4 address found for {db_host}, using hostname")
-                db_config['OPTIONS'] = {
-                    'sslmode': 'require',
-                    'connect_timeout': 10,
-                }
-        except socket.gaierror as e:
-            print(f"⚠ DNS resolution failed for {db_host}: {e}")
-            print(f"  Falling back to hostname without IPv4 resolution")
-            db_config['OPTIONS'] = {
-                'sslmode': 'require',
-                'connect_timeout': 10,
-            }
-    else:
-        db_config['OPTIONS'] = {
-            'sslmode': 'require',
-            'connect_timeout': 10,
-        }
+    # Configure SSL and connection options for Supabase
+    db_config['OPTIONS'] = {
+        'sslmode': 'require',
+        'connect_timeout': 30,  # Increased timeout for pooler connections
+        'keepalives': 1,
+        'keepalives_idle': 30,
+        'keepalives_interval': 10,
+        'keepalives_count': 5,
+    }
+    
+    # Provide helpful debugging info
+    if 'supabase.co' in db_host:
+        print(f"✓ Connecting to Supabase: {db_host}:{db_port}")
+        if db_port == 5432:
+            print(f"  ℹ Using port 5432 (Transaction pooler)")
+            print(f"  ℹ If connection fails, try port 6543 (Session pooler) in your DATABASE_URL")
+        elif db_port == 6543:
+            print(f"  ✓ Using port 6543 (Session pooler - recommended for Django)")
+        else:
+            print(f"  ⚠ Unexpected port: {db_port}")
     
     DATABASES = {'default': db_config}
     

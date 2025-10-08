@@ -135,29 +135,29 @@ export default function Home() {
   };
 
   return (
-    <section className="flex flex-col items-center justify-center gap-8 py-8 md:py-10">
+    <section className="flex flex-col items-center justify-center gap-8 py-8 md:py-10 px-4">
       {/* Hero Section */}
-      <div className="inline-block max-w-4xl text-center justify-center">
-        <span className={title()}>Automate Your&nbsp;</span>
-        <span className={title({ color: "violet" })}>Homework&nbsp;</span>
+      <div className="inline-block max-w-lg text-center justify-center">
+        <h1 className={title()}>Automate Your&nbsp;</h1>
+        <h1 className={title({ color: "violet" })}>Homework&nbsp;</h1>
         <br />
-        <span className={title()}>Management</span>
-        <div className={subtitle({ class: "mt-4" })}>
+        <h1 className={title()}>Management</h1>
+        <h2 className={subtitle({ class: "mt-4" })}>
           Automatically scrape homework from Lithuanian educational websites 
           (Manodienynas.lt & Eduka.lt) and sync them to your Google Tasks.
-        </div>
+        </h2>
       </div>
 
       {/* CTA Buttons - Only show for non-authenticated users */}
       {!loading && !user && (
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-3">
           <GoogleSignInButton />
         </div>
       )}
 
       {/* Authenticated user actions */}
       {!loading && user && (
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-3">
           <Button
             as={Link}
             href="/dashboard"
@@ -165,6 +165,7 @@ export default function Home() {
             size="lg"
             color="primary"
             variant="shadow"
+            className="w-full sm:w-auto"
           >
             View Homework
           </Button>
@@ -174,6 +175,7 @@ export default function Home() {
             radius="full"
             size="lg"
             variant="bordered"
+            className="w-full sm:w-auto"
           >
             View Exams
           </Button>
@@ -181,12 +183,12 @@ export default function Home() {
       )}
 
       {/* Preview Section - Shows real homework for logged in users, demo for guests */}
-      <div className="w-full max-w-4xl mt-12">
+      <div className="w-full max-w-4xl mt-8">
         <div className="text-center mb-6">
           <h2 className="text-2xl font-bold mb-2">
             {user ? 'Your Upcoming Homework' : 'See It In Action'}
           </h2>
-          <p className="text-default-500">
+          <p className="text-default-500 px-4 sm:px-0">
             {user 
               ? 'Your latest homework assignments from Manodienynas and Eduka'
               : 'Preview how your homework will be automatically organized and synced'
@@ -201,7 +203,7 @@ export default function Home() {
         ) : user && homework.length === 0 ? (
           <Card className="py-8">
             <CardBody className="text-center">
-              <div className="flex flex-col items-center gap-4">
+              <div className="flex flex-col items-center gap-4 px-4">
                 <div className="text-6xl">📚</div>
                 <h3 className="text-xl font-semibold">No Homework Yet</h3>
                 <p className="text-default-500 max-w-md">
@@ -219,82 +221,15 @@ export default function Home() {
               </div>
             </CardBody>
           </Card>
-        ) : !user && homework.length === 0 ? (
-          <div className="space-y-4">
-            {demoHomework.map((item) => (
-              <Card key={item.id} className={`hover:bg-default-50 transition-colors ${item.completed ? 'opacity-60' : ''}`}>
-                <CardBody>
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h3 className={`font-semibold text-lg ${item.completed ? 'line-through' : ''}`}>
-                          {item.title}
-                        </h3>
-                        <Chip
-                          size="sm"
-                          color={getSiteColor(item.site)}
-                          variant="flat"
-                        >
-                          {item.site}
-                        </Chip>
-                        {item.completed ? (
-                          <Chip size="sm" color="success" variant="flat">
-                            ✓ Completed
-                          </Chip>
-                        ) : item.synced_to_google_tasks ? (
-                          <Chip size="sm" color="success" variant="flat">
-                            ✓ Synced
-                          </Chip>
-                        ) : (
-                          <Chip size="sm" color="warning" variant="flat">
-                            Not Synced
-                          </Chip>
-                        )}
-                      </div>
-                      
-                      <p className="text-default-600 mb-3 line-clamp-2">
-                        {item.description}
-                      </p>
-                      
-                      <div className="flex items-center gap-6 text-sm text-default-500">
-                        <span>📚 {item.subject}</span>
-                        <span>📅 {formatDate(item.due_date)}</span>
-                      </div>
-                    </div>
-                    
-                    <div className="flex gap-2 ml-4">
-                      {!item.synced_to_google_tasks && (
-                        <Button
-                          size="sm"
-                          color="success"
-                          variant="flat"
-                          disabled
-                        >
-                          Sync
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="light"
-                        disabled
-                      >
-                        View Source
-                      </Button>
-                    </div>
-                  </div>
-                </CardBody>
-              </Card>
-            ))}
-          </div>
         ) : (
           <div className="space-y-4">
-            {homework.map((item) => (
+            {(user ? homework : demoHomework).map((item) => (
               <Card key={item.id} className={`hover:bg-default-50 transition-colors ${item.completed ? 'opacity-60' : ''}`}>
                 <CardBody>
-                  <div className="flex justify-between items-start">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h3 className={`font-semibold text-lg ${item.completed ? 'line-through' : ''}`}>
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <h3 className={`font-semibold text-lg leading-tight ${item.completed ? 'line-through' : ''}`}>
                           {item.title}
                         </h3>
                         <Chip
@@ -323,14 +258,14 @@ export default function Home() {
                         {item.description}
                       </p>
                       
-                      <div className="flex items-center gap-6 text-sm text-default-500">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 text-sm text-default-500">
                         <span>📚 {item.subject}</span>
                         <span>📅 {formatDate(item.due_date)}</span>
                       </div>
                     </div>
                     
                     {!user && (
-                      <div className="flex gap-2 ml-4">
+                      <div className="flex sm:flex-col gap-2 self-start sm:self-center mt-2 sm:mt-0">
                         {!item.synced_to_google_tasks && (
                           <Button
                             size="sm"
@@ -357,10 +292,8 @@ export default function Home() {
           </div>
         )}
         
-        <div className="text-center mt-6">
-          {user && homework.length === 0 ? (
-            null  // Already showing message in the card above
-          ) : user ? (
+        <div className="text-center mt-8">
+          {user && homework.length > 0 ? (
             <Button
               as={Link}
               href="/dashboard"
@@ -370,26 +303,26 @@ export default function Home() {
             >
               View All Homework
             </Button>
-          ) : (
-            <>
-              <p className="text-sm text-default-500 mb-4">
-                This is demo data. Sign in to see your actual homework assignments!
+          ) : !user ? (
+            <div className="flex flex-col items-center gap-4 mt-6">
+              <p className="text-sm text-default-500">
+                This is demo data. Sign in to see your actual homework!
               </p>
               <GoogleSignInButton />
-            </>
-          )}
+            </div>
+          ) : null}
         </div>
       </div>
 
       {/* Features */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12 max-w-5xl">
+      <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
         <Card className="py-4">
           <CardBody className="text-center">
             <div className="flex justify-center mb-4">
               <ScrapingIcon size={48} />
             </div>
             <h3 className="text-lg font-semibold mb-2">Automated Scraping</h3>
-            <p className="text-default-500">
+            <p className="text-default-500 px-4">
               Automatically scrape homework from Manodienynas.lt and Eduka.lt 
               at configurable intervals.
             </p>
@@ -402,7 +335,7 @@ export default function Home() {
               <GoogleIcon size={48} />
             </div>
             <h3 className="text-lg font-semibold mb-2">Google Tasks Sync</h3>
-            <p className="text-default-500">
+            <p className="text-default-500 px-4">
               Seamlessly sync scraped homework to your Google Tasks "Homework" 
               list for easy access across all devices.
             </p>
@@ -415,7 +348,7 @@ export default function Home() {
               <TaskIcon size={48} />
             </div>
             <h3 className="text-lg font-semibold mb-2">Smart Organization</h3>
-            <p className="text-default-500">
+            <p className="text-default-500 px-4">
               Organize homework by subject, due date, and source with 
               intelligent duplicate detection.
             </p>
@@ -424,7 +357,7 @@ export default function Home() {
       </div>
 
       {/* Status Indicators */}
-      <div className="flex gap-2 mt-8">
+      <div className="flex flex-wrap justify-center gap-2 mt-8">
         <Chip color="success" variant="flat">
           <span className="flex items-center gap-1">
             ✓ Manodienynas.lt Support

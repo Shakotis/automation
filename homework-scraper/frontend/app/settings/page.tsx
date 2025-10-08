@@ -516,16 +516,16 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <h1 className={title({ class: "mb-8" })}>Settings</h1>
+    <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-4xl">
+      <h1 className={title({ class: "mb-8", size: "sm" })}>Settings</h1>
 
       {/* Credentials Setup Prompt */}
       {showCredentialsPrompt && userProfile && (
         <Card className="mb-6 border-primary-200 bg-primary-50">
           <CardBody>
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="text-primary-600 text-2xl">🔐</div>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="text-primary-600 text-2xl pt-1">🔐</div>
                 <div>
                   <h3 className="font-semibold text-primary-800">Setup Your Site Credentials</h3>
                   <p className="text-primary-700 text-sm">
@@ -534,10 +534,11 @@ export default function SettingsPage() {
                 </div>
               </div>
               <Button
+                isIconOnly
                 size="sm"
-                color="default"
                 variant="light"
                 onClick={() => setShowCredentialsPrompt(false)}
+                className="self-start sm:self-center"
               >
                 ✕
               </Button>
@@ -550,8 +551,8 @@ export default function SettingsPage() {
       {!userProfile && (
         <Card className="mb-6 border-warning-200 bg-warning-50">
           <CardBody>
-            <div className="flex items-center gap-3">
-              <div className="text-warning-600 text-2xl">⚠️</div>
+            <div className="flex items-start gap-3">
+              <div className="text-warning-600 text-2xl pt-1">⚠️</div>
               <div>
                 <h3 className="font-semibold text-warning-800">Authentication Required</h3>
                 <p className="text-warning-700 text-sm">
@@ -581,16 +582,16 @@ export default function SettingsPage() {
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Email</label>
                 <Input
+                  label="Email"
                   value={userProfile?.email || ''}
                   isReadOnly
                   variant="bordered"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Name</label>
                 <Input
+                  label="Name"
                   value={`${userProfile?.first_name || ''} ${userProfile?.last_name || ''}`}
                   isReadOnly
                   variant="bordered"
@@ -598,8 +599,8 @@ export default function SettingsPage() {
               </div>
             </div>
             
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-medium">Google OAuth Status:</span>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+              <span className="text-sm font-medium">Google OAuth:</span>
               {userProfile?.has_google_oauth ? (
                 <Chip color="success" variant="flat">
                   ✓ Connected
@@ -630,69 +631,69 @@ export default function SettingsPage() {
         </CardHeader>
         <CardBody>
           <div className="space-y-6">
-            <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h3 className="font-medium">Enable Manodienynas.lt</h3>
-                  <p className="text-sm text-default-500">
-                    Scrape homework from Manodienynas.lt
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+              <div>
+                <h3 className="font-medium">Enable Manodienynas.lt</h3>
+                <p className="text-sm text-default-500">
+                  Scrape homework from Manodienynas.lt
+                </p>
+                {preferences.last_scraped_manodienynas && (
+                  <p className="text-xs text-default-400 mt-1">
+                    Last scraped: {formatDate(preferences.last_scraped_manodienynas)}
                   </p>
-                  {preferences.last_scraped_manodienynas && (
-                    <p className="text-xs text-default-400">
-                      Last scraped: {formatDate(preferences.last_scraped_manodienynas)}
-                    </p>
-                  )}
-                </div>
-                <Switch
-                  isSelected={preferences.enable_manodienynas}
-                  onValueChange={(value) => 
-                    setPreferences(prev => ({ ...prev, enable_manodienynas: value }))
-                  }
-                />
+                )}
               </div>
-
-              {preferences.enable_manodienynas && (
-                <div className="ml-4 pl-4 border-l-2 border-primary-200">
-                  <CredentialSection
-                    site="manodienynas"
-                    displayName="Manodienynas Credentials"
-                    description="Enter your Manodienynas.lt login credentials to enable automatic scraping"
-                  />
-                </div>
-              )}
-
-              <Divider />
-
-              <div className="flex justify-between items-center">
-                <div>
-                  <h3 className="font-medium">Enable Eduka.lt</h3>
-                  <p className="text-sm text-default-500">
-                    Scrape homework from Eduka.lt
-                  </p>
-                  {preferences.last_scraped_eduka && (
-                    <p className="text-xs text-default-400">
-                      Last scraped: {formatDate(preferences.last_scraped_eduka)}
-                    </p>
-                  )}
-                </div>
-                <Switch
-                  isSelected={preferences.enable_eduka}
-                  onValueChange={(value) => 
-                    setPreferences(prev => ({ ...prev, enable_eduka: value }))
-                  }
-                />
-              </div>
-
-              {preferences.enable_eduka && (
-                <div className="ml-4 pl-4 border-l-2 border-secondary-200">
-                  <CredentialSection
-                    site="eduka"
-                    displayName="Eduka Credentials"
-                    description="Enter your Eduka.lt login credentials to enable automatic scraping"
-                  />
-                </div>
-              )}
+              <Switch
+                isSelected={preferences.enable_manodienynas}
+                onValueChange={(value) => 
+                  setPreferences(prev => ({ ...prev, enable_manodienynas: value }))
+                }
+                className="self-end sm:self-center"
+              />
             </div>
+
+            {preferences.enable_manodienynas && (
+              <div className="pl-4 border-l-2 border-primary-200">
+                <CredentialSection
+                  site="manodienynas"
+                  displayName="Manodienynas Credentials"
+                  description="Enter your Manodienynas.lt login credentials."
+                />
+              </div>
+            )}
+
+            <Divider />
+
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+              <div>
+                <h3 className="font-medium">Enable Eduka.lt</h3>
+                <p className="text-sm text-default-500">
+                  Scrape homework from Eduka.lt
+                </p>
+                {preferences.last_scraped_eduka && (
+                  <p className="text-xs text-default-400 mt-1">
+                    Last scraped: {formatDate(preferences.last_scraped_eduka)}
+                  </p>
+                )}
+              </div>
+              <Switch
+                isSelected={preferences.enable_eduka}
+                onValueChange={(value) => 
+                  setPreferences(prev => ({ ...prev, enable_eduka: value }))
+                }
+                className="self-end sm:self-center"
+              />
+            </div>
+
+            {preferences.enable_eduka && (
+              <div className="pl-4 border-l-2 border-secondary-200">
+                <CredentialSection
+                  site="eduka"
+                  displayName="Eduka Credentials"
+                  description="Enter your Eduka.lt login credentials."
+                />
+              </div>
+            )}
           </div>
         </CardBody>
       </Card>
@@ -704,7 +705,7 @@ export default function SettingsPage() {
         </CardHeader>
         <CardBody>
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-default-50 rounded-lg">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-default-50 rounded-lg gap-4">
               <div>
                 <h3 className="font-medium">Google Tasks Sync</h3>
                 <p className="text-sm text-default-500">
@@ -720,6 +721,7 @@ export default function SettingsPage() {
                   size="sm"
                   color="primary"
                   onPress={handleGoogleAuth}
+                  className="w-full sm:w-auto"
                 >
                   Setup Google Tasks
                 </Button>
@@ -729,17 +731,15 @@ export default function SettingsPage() {
             <Divider />
 
             <div>
-              <label className="block text-sm font-medium mb-2">
-                Google Tasks Title Format
-              </label>
               <Select
+                label="Google Tasks Title Format"
                 selectedKeys={[preferences.google_tasks_title_format]}
                 onSelectionChange={(keys) => {
                   const value = Array.from(keys)[0] as 'title' | 'subject';
                   setPreferences(prev => ({ ...prev, google_tasks_title_format: value }));
                 }}
                 variant="bordered"
-                className="max-w-xs"
+                className="w-full"
                 description="Choose what to display as the task title in Google Tasks"
               >
                 <SelectItem key="title">
@@ -749,32 +749,21 @@ export default function SettingsPage() {
                   Subject Name (e.g., "Mathematics")
                 </SelectItem>
               </Select>
-              <p className="text-xs text-default-500 mt-2">
-                {preferences.google_tasks_title_format === 'title' 
-                  ? "The task title will be shown in Google Tasks, with subject in notes"
-                  : "The subject will be shown in Google Tasks, with task title in notes"}
-              </p>
             </div>
 
             <Divider />
 
-            <div className="text-sm text-default-500">
-              <p>
-                • Homework will be created as tasks in your Google Tasks "Homework" list
-              </p>
-              <p>
-                • Due dates will be preserved when available
-              </p>
-              <p>
-                • Task descriptions will include subject and source information
-              </p>
+            <div className="text-sm text-default-500 space-y-1">
+              <p>• Homework will be created as tasks in your Google Tasks "Homework" list.</p>
+              <p>• Due dates will be preserved when available.</p>
+              <p>• Task descriptions will include subject and source information.</p>
             </div>
           </div>
         </CardBody>
       </Card>
 
       {/* Actions */}
-      <div className="flex gap-3">
+      <div className="flex flex-col sm:flex-row gap-3">
         <Button
           color="primary"
           onPress={() => {
@@ -783,6 +772,7 @@ export default function SettingsPage() {
           }}
           isLoading={saving}
           disabled={saving}
+          className="w-full"
         >
           Save Settings
         </Button>
@@ -793,8 +783,9 @@ export default function SettingsPage() {
             fetchUserData();
           }}
           disabled={saving}
+          className="w-full"
         >
-          Reset to Default
+          Reset
         </Button>
       </div>
     </div>
