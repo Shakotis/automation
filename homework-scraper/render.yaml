@@ -34,6 +34,9 @@ services:
       - key: PYTHON_VERSION
         value: 3.11
       
+      - key: DJANGO_SETTINGS_MODULE
+        value: homework_scraper.settings_production
+      
       - key: DEBUG
         value: false
       
@@ -145,6 +148,9 @@ services:
       - key: PYTHON_VERSION
         value: 3.11
       
+      - key: DJANGO_SETTINGS_MODULE
+        value: homework_scraper.settings_production
+      
       # Database - Using Supabase PostgreSQL
       # IMPORTANT: Use Session pooler (port 6543) for Django
       # Get from: Supabase Dashboard → Settings → Database → Connection string (Session pooler)
@@ -199,6 +205,9 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11
+      
+      - key: DJANGO_SETTINGS_MODULE
+        value: homework_scraper.settings_production
       
       # Database - Using Supabase PostgreSQL
       # IMPORTANT: Use Session pooler (port 6543) for Django

@@ -538,17 +538,26 @@ class CredentialVerificationView(APIView):
         print(f"DEBUG: CredentialVerificationView POST - User: {request.user}")
         
         if not request.user.is_authenticated:
-            return Response({
-                'error': 'User not authenticated'
+            response = Response({
+                'error': 'User not authenticated',
+                'success': False,
+                'verified': False
             }, status=status.HTTP_401_UNAUTHORIZED)
+            # Ensure CORS headers are set
+            self._add_cors_headers(response, request)
+            return response
         
         site = request.data.get('site')
         custom_url = request.data.get('url')  # Optional custom URL
         
         if not site:
-            return Response({
-                'error': 'Site is required'
+            response = Response({
+                'error': 'Site is required',
+                'success': False,
+                'verified': False
             }, status=status.HTTP_400_BAD_REQUEST)
+            self._add_cors_headers(response, request)
+            return response
         
         try:
             verification_service = CredentialVerificationService()
@@ -556,20 +565,40 @@ class CredentialVerificationView(APIView):
                 request.user.id, site, custom_url
             )
             
-            return Response({
+            response = Response({
                 'success': success,
                 'message': message,
                 'site': site,
                 'verified': success
             })
+            self._add_cors_headers(response, request)
+            return response
             
         except Exception as e:
             logger.error(f"Error verifying credentials: {str(e)}")
-            return Response({
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            response = Response({
                 'error': f'Verification failed: {str(e)}',
                 'success': False,
                 'verified': False
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            self._add_cors_headers(response, request)
+            return response
+    
+    def _add_cors_headers(self, response, request):
+        """Manually add CORS headers to ensure they're present on error responses"""
+        from django.conf import settings
+        origin = request.META.get('HTTP_ORIGIN', '')
+        
+        # Check if origin is allowed
+        allowed_origins = getattr(settings, 'CORS_ALLOWED_ORIGINS', [])
+        if origin in allowed_origins or origin.endswith('.dovydas.space'):
+            response['Access-Control-Allow-Origin'] = origin
+            response['Access-Control-Allow-Credentials'] = 'true'
+            response['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+            response['Access-Control-Allow-Headers'] = 'accept, accept-encoding, authorization, content-type, dnt, origin, user-agent, x-csrftoken, x-requested-with'
+        return response
 
 @method_decorator(ensure_csrf_cookie, name='dispatch')
 class CSRFTokenView(APIView):
