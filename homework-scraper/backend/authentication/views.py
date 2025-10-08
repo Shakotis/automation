@@ -8,6 +8,7 @@ from django.contrib.auth.models import User
 from django.middleware.csrf import get_token
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from django.utils.decorators import method_decorator
+from django.conf import settings
 from tasks.services import GoogleOAuthService
 from .models import GoogleOAuth
 from .supabase_service import SupabaseService
@@ -172,8 +173,11 @@ class GoogleOAuthCallbackView(APIView):
                 request.session.save()
                 session_key = request.session.session_key
                 
+                # Get frontend URL from settings
+                frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+                
                 print(f"DEBUG: Creating redirect with session_key: {session_key}")
-                print(f"DEBUG: Redirect URL: http://localhost:3000{redirect_url}")
+                print(f"DEBUG: Redirect URL: {frontend_url}{redirect_url}")
                 
                 # Create redirect response to frontend
                 from django.http import HttpResponse
@@ -191,7 +195,7 @@ class GoogleOAuthCallbackView(APIView):
                         localStorage.setItem('session_key', '{session_key}');
                         localStorage.setItem('user_authenticated', 'true');
                         // Redirect to frontend
-                        window.location.href = 'http://localhost:3000{redirect_url}';
+                        window.location.href = '{frontend_url}{redirect_url}';
                     </script>
                 </head>
                 <body>
@@ -202,16 +206,23 @@ class GoogleOAuthCallbackView(APIView):
                 
                 response = HttpResponse(html_content, content_type='text/html')
                 
-                # Set session cookie that will work for localhost:3000
+                # Determine cookie domain based on frontend URL
+                cookie_domain = None
+                if 'dovydas.space' in frontend_url:
+                    cookie_domain = '.dovydas.space'  # Works for both nd.dovydas.space and api.dovydas.space
+                elif 'localhost' in frontend_url:
+                    cookie_domain = 'localhost'
+                
+                # Set session cookie that will work across subdomains
                 response.set_cookie(
                     'sessionid',
                     session_key,
                     max_age=1209600,  # 2 weeks
                     path='/',
-                    domain='localhost',  # Set for localhost domain
-                    secure=False,
+                    domain=cookie_domain,
+                    secure='https' in frontend_url,  # Secure only for HTTPS
                     httponly=False,  # Allow JavaScript to read
-                    samesite='Lax'
+                    samesite='Lax' if 'localhost' in frontend_url else 'None'  # None for cross-domain in production
                 )
                 
                 print(f"DEBUG: Set-Cookie headers: {response.cookies}")

@@ -76,6 +76,10 @@ services:
       - key: CSRF_TRUSTED_ORIGINS
         sync: false  # Set in Render Dashboard if needed, otherwise uses code defaults
       
+      # Frontend URL for OAuth redirects
+      - key: FRONTEND_URL
+        value: https://nd.dovydas.space
+      
       # Google OAuth (set in Render Dashboard)
       - key: GOOGLE_OAUTH2_CLIENT_ID
         sync: false
@@ -83,19 +87,8 @@ services:
       - key: GOOGLE_OAUTH2_CLIENT_SECRET
         sync: false
       
-      # Production OAuth redirect URI
       - key: GOOGLE_OAUTH_REDIRECT_URI
         value: https://api.dovydas.space/api/auth/google/callback
-      
-      # Session and CSRF cookie settings for production
-      - key: SESSION_COOKIE_SECURE
-        value: true
-      
-      - key: SESSION_COOKIE_DOMAIN
-        value: .dovydas.space
-      
-      - key: CSRF_COOKIE_SECURE
-        value: true
       
       # Supabase (if used)
       - key: SUPABASE_URL

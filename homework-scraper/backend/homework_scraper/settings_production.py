@@ -169,6 +169,9 @@ SECURE_BROWSER_XSS_FILTER = True
 CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', os.environ.get('REDIS_URL'))
 CELERY_RESULT_BACKEND = os.environ.get('CELERY_BROKER_URL', os.environ.get('REDIS_URL'))
 
+# Frontend URL for OAuth redirects
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://nd.dovydas.space')
+
 # Logging
 LOGGING = {
     'version': 1,

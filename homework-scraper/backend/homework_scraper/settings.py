@@ -210,6 +210,9 @@ GOOGLE_OAUTH2_SCOPES = [
     'https://www.googleapis.com/auth/calendar.events'
 ]
 
+# Frontend URL for OAuth redirects and CORS
+FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000')
+
 # Supabase settings
 SUPABASE_URL = config('SUPABASE_URL', default='')
 SUPABASE_KEY = config('SUPABASE_KEY', default='')
