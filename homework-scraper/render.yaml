@@ -20,6 +20,8 @@ services:
       pip install -r requirements.txt
       pip install psycopg2-binary
       pip install whitenoise
+      playwright install chromium
+      playwright install-deps chromium
       python manage.py collectstatic --no-input
       python manage.py migrate
     

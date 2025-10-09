@@ -2,18 +2,26 @@
 
 ## Issues Identified
 
-### 1. 403 Forbidden Error
+### 1. 403 Forbidden Error ✅ FIXED
 - **Problem**: Manodienynas.lt was blocking verification requests with 403 status
-- **Cause**: Single user agent being flagged as bot traffic or Cloudflare protection
+- **Cause**: `requests` library being flagged as bot traffic or Cloudflare protection
+- **Solution**: Switched to Playwright for browser-like requests
 
-### 2. CORS Error on 500 Response
-- **Problem**: When backend crashed with 500 error, CORS headers were not added to response
+### 2. CORS Error on 500/502 Response ✅ FIXED
+- **Problem**: When backend crashed with 500/502 error, CORS headers were not added to response
 - **Cause**: Error occurred before CORS middleware could process response
 - **Result**: Frontend couldn't read error message from API
+- **Solution**: Manually add CORS headers to ALL responses in affected views
 
-### 3. Production Settings Not Applied
+### 3. Production Settings Not Applied ✅ FIXED
 - **Problem**: Production environment was using `settings.py` instead of `settings_production.py`
 - **Cause**: Missing `DJANGO_SETTINGS_MODULE` environment variable in render.yaml
+- **Solution**: Added environment variable to all services
+
+### 4. Playwright Browsers Not Installed ✅ FIXED
+- **Problem**: 502 Bad Gateway because Playwright browsers weren't installed on Render
+- **Cause**: Missing `playwright install chromium` in build command
+- **Solution**: Added Playwright installation to web service build
 
 ## Fixes Applied
 

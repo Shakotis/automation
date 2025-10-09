@@ -271,9 +271,11 @@ class UserProfileView(APIView):
         print(f"DEBUG: UserProfileView - User: {request.user}")
         
         if not request.user.is_authenticated:
-            return Response({
+            response = Response({
                 'error': 'User not authenticated'
             }, status=status.HTTP_401_UNAUTHORIZED)
+            self._add_cors_headers(response, request)
+            return response
         
         # Check if user has Google OAuth set up
         has_google_oauth = GoogleOAuth.objects.filter(user=request.user).exists()
@@ -284,11 +286,12 @@ class UserProfileView(APIView):
             selected_sites = supabase_service.get_user_site_selections(request.user.id)
             user_profile = supabase_service.get_user_profile(request.user.id)
             preferences = user_profile.get('preferences', {}) if user_profile else {}
-        except:
+        except Exception as e:
+            logger.error(f"Error fetching user profile data: {str(e)}")
             selected_sites = []
             preferences = {}
         
-        return Response({
+        response = Response({
             'user': {
                 'id': request.user.id,
                 'email': request.user.email,
@@ -299,6 +302,22 @@ class UserProfileView(APIView):
                 'preferences': preferences,
             }
         })
+        self._add_cors_headers(response, request)
+        return response
+    
+    def _add_cors_headers(self, response, request):
+        """Manually add CORS headers to ensure they're present on error responses"""
+        from django.conf import settings
+        origin = request.META.get('HTTP_ORIGIN', '')
+        
+        # Check if origin is allowed
+        allowed_origins = getattr(settings, 'CORS_ALLOWED_ORIGINS', [])
+        if origin in allowed_origins or origin.endswith('.dovydas.space'):
+            response['Access-Control-Allow-Origin'] = origin
+            response['Access-Control-Allow-Credentials'] = 'true'
+            response['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+            response['Access-Control-Allow-Headers'] = 'accept, accept-encoding, authorization, content-type, dnt, origin, user-agent, x-csrftoken, x-requested-with'
+        return response
 
 @method_decorator(csrf_exempt, name='dispatch')
 class SiteSelectionView(APIView):
@@ -383,9 +402,11 @@ class CredentialManagementView(APIView):
         print(f"DEBUG: CredentialManagementView GET - Session data: {dict(request.session)}")
         
         if not request.user.is_authenticated:
-            return Response({
+            response = Response({
                 'error': 'User not authenticated'
             }, status=status.HTTP_401_UNAUTHORIZED)
+            self._add_cors_headers(response, request)
+            return response
         
         try:
             credential_storage = SecureCredentialStorage()
@@ -401,18 +422,22 @@ class CredentialManagementView(APIView):
                     'additional_data': cred_data.get('additional_data', {})
                 }
             
-            return Response({
+            response = Response({
                 'credentials': safe_credentials
             })
+            self._add_cors_headers(response, request)
+            return response
             
         except Exception as e:
             import traceback
             logger.error(f"Error in CredentialManagementView GET: {str(e)}")
             logger.error(f"Traceback: {traceback.format_exc()}")
-            return Response({
+            response = Response({
                 'error': f'Failed to retrieve credentials: {str(e)}',
                 'details': 'Check server logs for more information'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            self._add_cors_headers(response, request)
+            return response
     
     def post(self, request):
         """Store user credentials for a site"""
@@ -423,9 +448,11 @@ class CredentialManagementView(APIView):
         print(f"DEBUG: CredentialManagementView POST - Cookies: {request.COOKIES}")
         
         if not request.user.is_authenticated:
-            return Response({
+            response = Response({
                 'error': 'Please sign in with Google first to save credentials'
             }, status=status.HTTP_401_UNAUTHORIZED)
+            self._add_cors_headers(response, request)
+            return response
         
         site = request.data.get('site')
         username = request.data.get('username')
@@ -433,9 +460,11 @@ class CredentialManagementView(APIView):
         additional_data = request.data.get('additional_data', {})
         
         if not all([site, username, password]):
-            return Response({
+            response = Response({
                 'error': 'Site, username, and password are required'
             }, status=status.HTTP_400_BAD_REQUEST)
+            self._add_cors_headers(response, request)
+            return response
         
         try:
             credential_storage = SecureCredentialStorage()
@@ -443,32 +472,40 @@ class CredentialManagementView(APIView):
                 request.user.id, site, username, password, additional_data
             )
             
-            return Response({
+            response = Response({
                 'message': 'Credentials stored successfully',
                 'site': site,
                 'username': username,
                 'is_verified': False
             })
+            self._add_cors_headers(response, request)
+            return response
             
         except Exception as e:
-            return Response({
+            response = Response({
                 'error': f'Failed to store credentials: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            self._add_cors_headers(response, request)
+            return response
     
     def put(self, request):
         """Update credential verification status"""
         if not request.user.is_authenticated:
-            return Response({
+            response = Response({
                 'error': 'User not authenticated'
             }, status=status.HTTP_401_UNAUTHORIZED)
+            self._add_cors_headers(response, request)
+            return response
         
         site = request.data.get('site')
         is_verified = request.data.get('is_verified', False)
         
         if not site:
-            return Response({
+            response = Response({
                 'error': 'Site is required'
             }, status=status.HTTP_400_BAD_REQUEST)
+            self._add_cors_headers(response, request)
+            return response
         
         try:
             credential_storage = SecureCredentialStorage()
@@ -477,53 +514,83 @@ class CredentialManagementView(APIView):
             )
             
             if success:
-                return Response({
+                response = Response({
                     'message': 'Verification status updated',
                     'site': site,
                     'is_verified': is_verified
                 })
+                self._add_cors_headers(response, request)
+                return response
             else:
-                return Response({
+                response = Response({
                     'error': 'Failed to update verification status'
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                self._add_cors_headers(response, request)
+                return response
                 
         except Exception as e:
-            return Response({
+            response = Response({
                 'error': f'Failed to update verification: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            self._add_cors_headers(response, request)
+            return response
     
     def delete(self, request):
         """Delete user credentials for a site"""
         if not request.user.is_authenticated:
-            return Response({
+            response = Response({
                 'error': 'User not authenticated'
             }, status=status.HTTP_401_UNAUTHORIZED)
+            self._add_cors_headers(response, request)
+            return response
         
         site = request.data.get('site')
         
         if not site:
-            return Response({
+            response = Response({
                 'error': 'Site is required'
             }, status=status.HTTP_400_BAD_REQUEST)
+            self._add_cors_headers(response, request)
+            return response
         
         try:
             credential_storage = SecureCredentialStorage()
             success = credential_storage.delete_user_credentials(request.user.id, site)
             
             if success:
-                return Response({
+                response = Response({
                     'message': 'Credentials deleted successfully',
                     'site': site
                 })
+                self._add_cors_headers(response, request)
+                return response
             else:
-                return Response({
+                response = Response({
                     'error': 'Failed to delete credentials'
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                self._add_cors_headers(response, request)
+                return response
                 
         except Exception as e:
-            return Response({
+            response = Response({
                 'error': f'Failed to delete credentials: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            self._add_cors_headers(response, request)
+            return response
+    
+    def _add_cors_headers(self, response, request):
+        """Manually add CORS headers to ensure they're present on error responses"""
+        from django.conf import settings
+        origin = request.META.get('HTTP_ORIGIN', '')
+        
+        # Check if origin is allowed
+        allowed_origins = getattr(settings, 'CORS_ALLOWED_ORIGINS', [])
+        if origin in allowed_origins or origin.endswith('.dovydas.space'):
+            response['Access-Control-Allow-Origin'] = origin
+            response['Access-Control-Allow-Credentials'] = 'true'
+            response['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+            response['Access-Control-Allow-Headers'] = 'accept, accept-encoding, authorization, content-type, dnt, origin, user-agent, x-csrftoken, x-requested-with'
+        return response
 
 @method_decorator(csrf_exempt, name='dispatch')
 class CredentialVerificationView(APIView):
