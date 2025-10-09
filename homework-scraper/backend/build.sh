@@ -7,7 +7,7 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 echo "Installing Playwright browsers..."
-playwright install chromium
+playwright install --with-deps chromium
 
 echo "Collecting static files..."
 python manage.py collectstatic --no-input
