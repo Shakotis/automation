@@ -7,7 +7,10 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 echo "Installing Playwright browsers..."
-playwright install --with-deps chromium
+# Use --no-shell to avoid sudo prompts on Render
+PLAYWRIGHT_BROWSERS_PATH=0 playwright install chromium
+# Install system dependencies separately if needed
+playwright install-deps chromium || echo "Warning: Some system dependencies may be missing. Continuing anyway..."
 
 echo "Collecting static files..."
 python manage.py collectstatic --no-input
