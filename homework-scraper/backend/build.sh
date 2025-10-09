@@ -7,9 +7,18 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 echo "Installing Playwright browsers..."
-# Install only the browser binary, not system dependencies
-# System dependencies are already provided by Render's environment
+# Install browsers to default location (~/.cache/ms-playwright)
+# Skip system dependency validation as Render provides them
 PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=true playwright install chromium
+
+echo "Verifying browser installation..."
+BROWSER_PATH="$HOME/.cache/ms-playwright"
+if [ -d "$BROWSER_PATH" ]; then
+    echo "✓ Browsers installed successfully at $BROWSER_PATH"
+    ls -la "$BROWSER_PATH/" | head -20
+else
+    echo "⚠ Warning: Browser directory not found at $BROWSER_PATH"
+fi
 
 echo "Collecting static files..."
 python manage.py collectstatic --no-input

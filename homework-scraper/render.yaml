@@ -104,8 +104,8 @@ services:
         sync: false
       
       # Playwright (if needed)
-      - key: PLAYWRIGHT_BROWSERS_PATH
-        value: /opt/render/.cache/ms-playwright
+      # Using default system path instead of custom path for better compatibility
+      # Browsers will be installed to ~/.cache/ms-playwright by default
     
     # Disk for SQLite (if not using PostgreSQL)
     # disk:
@@ -134,7 +134,7 @@ services:
       pip install --upgrade pip
       pip install -r requirements.txt
       pip install psycopg2-binary
-      playwright install chromium
+      PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=true playwright install chromium
     
     startCommand: celery -A homework_scraper worker --loglevel=info --concurrency=2
     
@@ -176,9 +176,8 @@ services:
       - key: ENCRYPTION_KEY
         sync: false
       
-      # Playwright
-      - key: PLAYWRIGHT_BROWSERS_PATH
-        value: /opt/render/.cache/ms-playwright
+      # Playwright - using default path
+      # Browsers will be installed to ~/.cache/ms-playwright by default
 
   # Celery Beat (Scheduled tasks)
   - type: worker
