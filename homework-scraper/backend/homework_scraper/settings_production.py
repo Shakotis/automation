@@ -64,12 +64,12 @@ try:
     
     # Supabase connection options
     # Important: Supabase Pooler has two modes:
-    # - Port 6543: Session mode (pgBouncer) - recommended for Django
-    # - Port 5432: Transaction mode - may have connection issues
+    # - Port 6543: Session mode (pgBouncer) - RECOMMENDED for Django (best for long connections)
+    # - Port 5432: Direct connection - may have connection limits
     # If you're getting "Connection refused" on port 5432, switch to port 6543
     
     db_host = db_config.get('HOST', '')
-    db_port = db_config.get('PORT', '')
+    db_port = db_config.get('PORT', 5432)
     
     # Configure SSL and connection options for Supabase
     db_config['OPTIONS'] = {
@@ -82,15 +82,17 @@ try:
     }
     
     # Provide helpful debugging info
-    if 'supabase.co' in db_host:
+    if 'supabase' in db_host.lower():
         print(f"✓ Connecting to Supabase: {db_host}:{db_port}")
-        if db_port == 5432:
-            print(f"  ℹ Using port 5432 (Transaction pooler)")
-            print(f"  ℹ If connection fails, try port 6543 (Session pooler) in your DATABASE_URL")
-        elif db_port == 6543:
+        if int(db_port) == 5432:
+            print(f"  ⚠ WARNING: Using port 5432 (Direct connection)")
+            print(f"  ⚠ If you're getting 'Connection refused', update DATABASE_URL to use port 6543")
+            print(f"  ⚠ Port 6543 (Session pooler) is recommended for Django applications")
+        elif int(db_port) == 6543:
             print(f"  ✓ Using port 6543 (Session pooler - recommended for Django)")
         else:
             print(f"  ⚠ Unexpected port: {db_port}")
+            print(f"  ⚠ Supabase typically uses port 6543 (pooler) or 5432 (direct)")
     
     DATABASES = {'default': db_config}
     
@@ -98,8 +100,11 @@ except ValueError as e:
     raise ValueError(
         f"Failed to parse DATABASE_URL: {str(e)}. "
         f"This usually means the port is invalid or the URL is malformed. "
+        f"\n\n❌ SOLUTION - Fix your DATABASE_URL:"
+        f"\n1. Go to Render Dashboard → Environment Variables"
+        f"\n2. Update DATABASE_URL to use port 6543 (Session Pooler)"
+        f"\n3. Format: postgresql://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres"
         f"\n\nCurrent DATABASE_URL starts with: {DATABASE_URL[:60]}..."
-        f"\n\nExpected format: postgresql://user:pass@host:5432/dbname"
     )
 
 # Static files with WhiteNoise
@@ -111,8 +116,18 @@ STATIC_URL = '/static/'
 # CORS settings for production
 CORS_ALLOWED_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',')
 if not CORS_ALLOWED_ORIGINS or CORS_ALLOWED_ORIGINS == ['']:
-    CORS_ALLOWED_ORIGINS = ['https://nd.dovydas.space', 'https://api.dovydas.space']
+    CORS_ALLOWED_ORIGINS = [
+        'https://nd.dovydas.space',
+        'https://api.dovydas.space',
+        'https://dovydas.space',
+        'https://www.dovydas.space'
+    ]
+
+# Enable CORS with credentials
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_ALL_ORIGINS = False  # Explicitly set to False for security
+
+# Allow all standard headers
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
@@ -123,7 +138,9 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
+    'cookie',  # Important for session cookies
 ]
+
 CORS_ALLOW_METHODS = [
     'DELETE',
     'GET',
@@ -131,6 +148,12 @@ CORS_ALLOW_METHODS = [
     'PATCH',
     'POST',
     'PUT',
+]
+
+# Expose headers that frontend might need
+CORS_EXPOSE_HEADERS = [
+    'content-type',
+    'x-csrftoken',
 ]
 
 # CSRF settings
@@ -144,6 +167,9 @@ CSRF_COOKIE_SAMESITE = 'None'
 SESSION_COOKIE_SECURE = True
 SESSION_COOKIE_SAMESITE = 'None'
 SESSION_COOKIE_HTTPONLY = False  # Allow JavaScript access
+SESSION_COOKIE_DOMAIN = '.dovydas.space'  # Share cookies across subdomains
+SESSION_COOKIE_NAME = 'sessionid'
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Use PostgreSQL for sessions
 
 # Security headers
 SECURE_SSL_REDIRECT = True

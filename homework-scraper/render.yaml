@@ -182,9 +182,9 @@ services:
       - key: PLAYWRIGHT_BROWSERS_PATH
         value: /opt/render/project/src/.playwright-browsers
 
-  # Celery Beat (Scheduled tasks)
+  # One-time Migration Job (run once, then delete)
   - type: worker
-    name: homework-scraper-celery-beat
+    name: homework-scraper-migrations
     runtime: python
     plan: free
     region: oregon
@@ -196,7 +196,12 @@ services:
       pip install -r requirements.txt
       pip install psycopg2-binary
     
-    startCommand: celery -A homework_scraper beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    startCommand: |
+      echo "Running database migrations..."
+      python manage.py migrate --no-input
+      echo "✓ Migrations completed! You can now delete this service."
+      # Keep running to prevent auto-shutdown
+      while true; do sleep 60; done
     
     envVars:
       - key: PYTHON_VERSION
@@ -205,30 +210,8 @@ services:
       - key: DJANGO_SETTINGS_MODULE
         value: homework_scraper.settings_production
       
-      # Database - Using Supabase PostgreSQL
-      # IMPORTANT: Use Session pooler (port 6543) for Django
-      # Get from: Supabase Dashboard → Settings → Database → Connection string (Session pooler)
       - key: DATABASE_URL
         sync: false  # Set manually in Render Dashboard
-      
-      # Supabase Configuration
-      - key: SUPABASE_URL
-        value: https://kcixuytszyzgvcybxyym.supabase.co
-      
-      - key: SUPABASE_KEY
-        sync: false
-      
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: homework-scraper-redis
-          property: connectionString
-      
-      - key: CELERY_BROKER_URL
-        fromService:
-          type: redis
-          name: homework-scraper-redis
-          property: connectionString
       
       - key: SECRET_KEY
         sync: false
