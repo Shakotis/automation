@@ -44,6 +44,13 @@ class GoogleOAuthCallbackView(APIView):
     def get(self, request):
         code = request.GET.get('code')
         state = request.GET.get('state')
+        error = request.GET.get('error')
+        
+        print(f"DEBUG: GET callback - code: {code[:20] if code else None}...")
+        print(f"DEBUG: GET callback - state: {state}")
+        print(f"DEBUG: GET callback - error: {error}")
+        print(f"DEBUG: GET callback - all params: {dict(request.GET)}")
+        
         return self._handle_oauth_callback(request, code, state)
     
     def post(self, request):
@@ -70,6 +77,10 @@ class GoogleOAuthCallbackView(APIView):
             print(f"DEBUG: User authenticated after login: {request.user.is_authenticated}")
             print(f"DEBUG: Session data: {dict(request.session)}")
             print(f"DEBUG: Updated session auth hash")
+            
+            # Force session save
+            request.session.save()
+            print(f"DEBUG: Session saved, key: {request.session.session_key}")
             
             # Delete demo homework and duplicates for logged-in users
             try:
@@ -269,6 +280,8 @@ class UserProfileView(APIView):
         print(f"DEBUG: UserProfileView - User authenticated: {request.user.is_authenticated}")
         print(f"DEBUG: UserProfileView - Session data: {dict(request.session)}")
         print(f"DEBUG: UserProfileView - User: {request.user}")
+        print(f"DEBUG: UserProfileView - Cookies: {request.COOKIES}")
+        print(f"DEBUG: UserProfileView - Headers: {dict(request.headers)}")
         
         if not request.user.is_authenticated:
             response = Response({
@@ -676,4 +689,25 @@ class CSRFTokenView(APIView):
     def get(self, request):
         return Response({
             'csrfToken': get_token(request)
+        })
+
+@method_decorator(csrf_exempt, name='dispatch')
+class DebugSessionView(APIView):
+    """Debug session and cookie information"""
+    authentication_classes = []  # Disable authentication
+    permission_classes = []  # Allow unauthenticated access
+    
+    def get(self, request):
+        return Response({
+            'session_key': request.session.session_key,
+            'user_authenticated': request.user.is_authenticated,
+            'user': str(request.user) if request.user.is_authenticated else None,
+            'session_data': dict(request.session),
+            'cookies': dict(request.COOKIES),
+            'headers': {
+                'origin': request.META.get('HTTP_ORIGIN'),
+                'referer': request.META.get('HTTP_REFERER'),
+                'user_agent': request.META.get('HTTP_USER_AGENT'),
+                'cookie': request.META.get('HTTP_COOKIE', '')[:200] + '...' if request.META.get('HTTP_COOKIE') else None,
+            }
         })

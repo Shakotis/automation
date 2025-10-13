@@ -170,6 +170,8 @@ SESSION_COOKIE_HTTPONLY = False  # Allow JavaScript access
 SESSION_COOKIE_DOMAIN = '.dovydas.space'  # Share cookies across subdomains
 SESSION_COOKIE_NAME = 'sessionid'
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Use PostgreSQL for sessions
+SESSION_SAVE_EVERY_REQUEST = True  # Save session on every request
+SESSION_COOKIE_AGE = 1209600  # 2 weeks in seconds
 
 # Security headers
 SECURE_SSL_REDIRECT = True

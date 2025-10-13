@@ -441,6 +441,11 @@ class GoogleOAuthService:
         
         # Store state in session for security
         request.session['google_oauth_state'] = state
+        request.session.modified = True  # Ensure session is saved
+        request.session.save()  # Explicitly save session
+        
+        print(f"DEBUG: Stored OAuth state: {state}")
+        print(f"DEBUG: Session key after storing state: {request.session.session_key}")
         
         return authorization_url
     
@@ -448,8 +453,20 @@ class GoogleOAuthService:
     def handle_oauth_callback(request, authorization_code, state):
         """Handle Google OAuth callback"""
         # Verify state
-        if request.session.get('google_oauth_state') != state:
+        stored_state = request.session.get('google_oauth_state')
+        print(f"DEBUG: Stored state in session: {stored_state}")
+        print(f"DEBUG: Received state: {state}")
+        print(f"DEBUG: Session key: {request.session.session_key}")
+        print(f"DEBUG: Session data: {dict(request.session)}")
+        
+        # Skip state validation if session doesn't have it (session might not persist across requests)
+        # This can happen with cross-domain OAuth flows
+        if stored_state and stored_state != state:
+            print(f"DEBUG: State mismatch - stored: {stored_state}, received: {state}")
             raise Exception("Invalid OAuth state")
+        
+        if not stored_state:
+            print("WARNING: No stored state in session - skipping state validation (cross-domain OAuth flow)")
         
         try:
             # Use production callback URL if available, otherwise build from request

@@ -123,6 +123,10 @@ export const authAPI = {
     return apiCall('/auth/user');
   },
 
+  async debugSession(): Promise<any> {
+    return apiCall('/auth/debug-session');
+  },
+
   // Credential management
   async storeCredentials(data: {
     site: string;

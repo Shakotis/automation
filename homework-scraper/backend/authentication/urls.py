@@ -10,4 +10,5 @@ urlpatterns = [
     path('preferences', views.UserPreferencesView.as_view(), name='user-preferences'),
     path('credentials', views.CredentialManagementView.as_view(), name='credential-management'),
     path('verify-credentials', views.CredentialVerificationView.as_view(), name='credential-verification'),
+    path('debug-session', views.DebugSessionView.as_view(), name='debug-session'),
 ]

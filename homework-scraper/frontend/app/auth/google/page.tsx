@@ -16,38 +16,23 @@ export default function AuthGooglePage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Check if this is a callback from Google OAuth
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-    const state = urlParams.get('state');
-    const error = urlParams.get('error');
-
-    if (error) {
-      setError('Authentication was cancelled or failed');
-      return;
-    }
-
-    if (code && state) {
-      handleOAuthCallback(code, state);
-    }
+    // Check if user is already authenticated
+    checkAuthStatus();
   }, []);
 
-  const handleOAuthCallback = async (code: string, state: string) => {
-    setLoading(true);
+  const checkAuthStatus = async () => {
     try {
-      const response = await fetch(`/api/auth/google/callback/?code=${code}&state=${state}`);
-      const data = await response.json();
-
+      const response = await fetch(`${API_BASE_URL}/auth/user`, {
+        credentials: 'include',
+      });
+      
       if (response.ok) {
-        // Redirect to dashboard on success
+        // User is already authenticated, redirect to dashboard
         window.location.href = '/dashboard';
-      } else {
-        setError(data.error || 'Authentication failed');
       }
-    } catch (err) {
-      setError('Network error occurred');
-    } finally {
-      setLoading(false);
+    } catch (error) {
+      // User not authenticated, stay on this page
+      console.log('User not authenticated');
     }
   };
 
@@ -56,7 +41,9 @@ export default function AuthGooglePage() {
     setError(null);
     
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/google/login`);
+      const response = await fetch(`${API_BASE_URL}/auth/google/login`, {
+        credentials: 'include',
+      });
       const data = await response.json();
 
       if (response.ok && data.authorization_url) {
