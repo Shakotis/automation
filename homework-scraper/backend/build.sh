@@ -7,17 +7,28 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 echo "Installing Playwright browsers..."
-# Install browsers to default location (~/.cache/ms-playwright)
-# Skip system dependency validation as Render provides them
+# Install browsers to a persistent location in the project directory
+# This ensures browsers are available at runtime
+export PLAYWRIGHT_BROWSERS_PATH=/opt/render/project/src/.playwright-browsers
+mkdir -p "$PLAYWRIGHT_BROWSERS_PATH"
+
+# Install chromium with system dependency validation skipped
 PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=true playwright install chromium
 
 echo "Verifying browser installation..."
-BROWSER_PATH="$HOME/.cache/ms-playwright"
-if [ -d "$BROWSER_PATH" ]; then
-    echo "✓ Browsers installed successfully at $BROWSER_PATH"
-    ls -la "$BROWSER_PATH/" | head -20
+if [ -d "$PLAYWRIGHT_BROWSERS_PATH" ]; then
+    echo "✓ Browsers installed successfully at $PLAYWRIGHT_BROWSERS_PATH"
+    ls -la "$PLAYWRIGHT_BROWSERS_PATH/" | head -20
+    
+    # Find the chromium executable
+    CHROMIUM_EXEC=$(find "$PLAYWRIGHT_BROWSERS_PATH" -name "chrome" -o -name "chromium" | head -1)
+    if [ -n "$CHROMIUM_EXEC" ]; then
+        echo "✓ Chromium executable found at: $CHROMIUM_EXEC"
+    else
+        echo "⚠ Warning: Chromium executable not found in $PLAYWRIGHT_BROWSERS_PATH"
+    fi
 else
-    echo "⚠ Warning: Browser directory not found at $BROWSER_PATH"
+    echo "⚠ Warning: Browser directory not found at $PLAYWRIGHT_BROWSERS_PATH"
 fi
 
 echo "Collecting static files..."

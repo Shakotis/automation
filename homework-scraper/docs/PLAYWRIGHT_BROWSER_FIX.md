@@ -7,55 +7,71 @@ Executable doesn't exist at /opt/render/.cache/ms-playwright/chromium-1140/chrom
 ```
 
 ## Root Cause
-The `PLAYWRIGHT_BROWSERS_PATH` environment variable was set to `/opt/render/.cache/ms-playwright`, but:
-1. This directory might not be writable during build
-2. The browsers were being installed to a different location (default `~/.cache/ms-playwright`)
-3. At runtime, Playwright was looking in the wrong location
+The browsers installed during the build phase were not persisted or accessible at runtime because:
+1. The default location (`~/.cache/ms-playwright`) is tied to the build-time home directory
+2. At runtime, the application runs under a different user context where `$HOME` points to a different location
+3. Render's ephemeral build environment doesn't persist files outside the project directory
 
 ## Solution
-**Remove custom `PLAYWRIGHT_BROWSERS_PATH` and use Playwright's default location**
+**Install browsers to a persistent location within the project directory**
 
 ### Changes Made:
 
 #### 1. `backend/build.sh`
-- Install browsers to default location (`~/.cache/ms-playwright`)
-- Added verification step to confirm browser installation
-- Use `PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=true` to skip system dep checks
+```bash
+# Install browsers to a persistent location in the project directory
+export PLAYWRIGHT_BROWSERS_PATH=/opt/render/project/src/.playwright-browsers
+mkdir -p "$PLAYWRIGHT_BROWSERS_PATH"
+PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=true playwright install chromium
+```
 
 #### 2. `render.yaml`
-- Removed `PLAYWRIGHT_BROWSERS_PATH` environment variable from web service
-- Removed `PLAYWRIGHT_BROWSERS_PATH` environment variable from Celery worker
-- Updated Celery worker build command to use `PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=true`
+**Web Service:**
+```yaml
+envVars:
+  - key: PLAYWRIGHT_BROWSERS_PATH
+    value: /opt/render/project/src/.playwright-browsers
+```
 
-#### 3. Other fixes from previous iteration:
-- Created `backend/package.json` to prevent Node.js auto-detection
-- Created `backend/.renderignore` to ignore Node.js files
-- Created `backend/.python-version` to explicitly set Python 3.11
+**Celery Worker:**
+```yaml
+buildCommand: |
+  export PLAYWRIGHT_BROWSERS_PATH=/opt/render/project/src/.playwright-browsers
+  mkdir -p "$PLAYWRIGHT_BROWSERS_PATH"
+  PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=true playwright install chromium
+
+envVars:
+  - key: PLAYWRIGHT_BROWSERS_PATH
+    value: /opt/render/project/src/.playwright-browsers
+```
 
 ## Why This Works
 
-1. **Default Path is Reliable**: Playwright's default path (`~/.cache/ms-playwright`) is guaranteed to be writable during build and accessible at runtime
-2. **Consistent Paths**: Both build-time and runtime now use the same default location
-3. **No Sudo Required**: By skipping host requirements validation, we avoid the authentication failure
+1. **Persistent Location**: `/opt/render/project/src/` is the project root directory that persists between build and runtime
+2. **Same Path for Build & Runtime**: By setting `PLAYWRIGHT_BROWSERS_PATH` during both build and runtime, Playwright uses the exact same location
+3. **No Sudo Required**: By skipping host requirements validation, we avoid authentication failures
 4. **Render Provides Dependencies**: Render's environment already has the necessary system libraries for Chromium
+
+## Key Insight
+The critical issue was that Playwright defaults to `~/.cache/ms-playwright`, but:
+- During **build**: `$HOME` = build user's home directory
+- During **runtime**: `$HOME` = application user's home directory (different user!)
+
+By using an absolute path within the project directory (`/opt/render/project/src/`), we ensure the browsers are:
+- Installed during build ✓
+- Persisted after build ✓
+- Accessible at runtime ✓
 
 ## Testing
 After deploying, verify:
-1. Check build logs for: `✓ Browsers installed successfully`
-2. Test credential verification endpoint
-3. Confirm no "Executable doesn't exist" errors in logs
+1. Check build logs for: `✓ Browsers installed successfully at /opt/render/project/src/.playwright-browsers`
+2. Check for: `✓ Chromium executable found at: [path]`
+3. Test credential verification endpoint
+4. Confirm no "Executable doesn't exist" errors in logs
 
-## Alternative Approach (if still failing)
-If the default path still has issues, you can explicitly set it during both build and runtime:
-
-```bash
-# In build.sh
-export PLAYWRIGHT_BROWSERS_PATH=/opt/render/project/.cache/ms-playwright
-playwright install chromium
-
-# In render.yaml envVars
-- key: PLAYWRIGHT_BROWSERS_PATH
-  value: /opt/render/project/.cache/ms-playwright
-```
-
-The key is ensuring the **same path** is used during both build and runtime.
+## Troubleshooting
+If issues persist:
+1. Check that `PLAYWRIGHT_BROWSERS_PATH` is set in environment variables
+2. Verify browser directory exists: Check build logs for the directory listing
+3. Ensure the path is consistent between build.sh and render.yaml
+4. Check file permissions in the project directory
