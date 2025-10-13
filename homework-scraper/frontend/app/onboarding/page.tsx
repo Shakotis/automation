@@ -6,7 +6,7 @@ import Stepper, { Step } from '@/components/ui/stepper';
 import { Button } from '@heroui/button';
 import { Input } from '@heroui/input';
 import { Card, CardBody, CardHeader } from '@heroui/card';
-import { Checkbox } from '@heroui/react';
+import { Checkbox } from '@heroui/checkbox';
 
 export default function OnboardingPage() {
   const router = useRouter();

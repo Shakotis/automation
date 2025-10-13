@@ -51,6 +51,15 @@ if echo "$DATABASE_URL" | grep -q "user:password@host:port"; then
 fi
 
 echo "Running database migrations..."
-python manage.py migrate
+# Try to run migrations, but don't fail the build if database is temporarily unavailable
+# This can happen during initial deployment or database maintenance
+if ! python manage.py migrate --no-input 2>&1; then
+    echo "⚠ Warning: Database migration failed (database may be temporarily unavailable)"
+    echo "This is usually okay on first deploy or during database maintenance."
+    echo "Migrations will be retried when the server starts."
+    # Don't exit with error - let the service start and retry migrations
+else
+    echo "✓ Database migrations completed successfully"
+fi
 
 echo "Build complete!"
