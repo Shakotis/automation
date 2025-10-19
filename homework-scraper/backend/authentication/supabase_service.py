@@ -28,7 +28,6 @@ class SupabaseService:
                 'last_name': user.last_name,
                 'username': user.username,
                 'is_active': user.is_active,
-                'date_joined': user.date_joined.isoformat(),
                 'last_login': user.last_login.isoformat() if user.last_login else None,
                 'updated_at': datetime.now().isoformat()
             }
