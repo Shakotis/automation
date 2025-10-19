@@ -191,40 +191,19 @@ class GoogleOAuthCallbackView(APIView):
                 print(f"DEBUG: Redirect URL: {frontend_url}{redirect_url}")
                 
                 # Create redirect response to frontend
-                from django.http import HttpResponse
+                from django.http import HttpResponseRedirect
                 
-                # Instead of redirecting, send an HTML page that will:
-                # 1. Set the session cookie in the browser
-                # 2. Redirect to the frontend
-                html_content = f"""
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Redirecting...</title>
-                    <script>
-                        // Set session info in localStorage for the frontend
-                        localStorage.setItem('session_key', '{session_key}');
-                        localStorage.setItem('user_authenticated', 'true');
-                        // Redirect to frontend
-                        window.location.href = '{frontend_url}{redirect_url}';
-                    </script>
-                </head>
-                <body>
-                    <p>Authentication successful! Redirecting...</p>
-                </body>
-                </html>
-                """
-                
-                response = HttpResponse(html_content, content_type='text/html')
+                # Use a simple redirect - the session cookie is already set by Django
+                response = HttpResponseRedirect(f"{frontend_url}{redirect_url}")
                 
                 # Determine cookie domain based on frontend URL
                 cookie_domain = None
                 if 'dovydas.space' in frontend_url:
                     cookie_domain = '.dovydas.space'  # Works for both nd.dovydas.space and api.dovydas.space
                 elif 'localhost' in frontend_url:
-                    cookie_domain = 'localhost'
+                    cookie_domain = None  # Don't set domain for localhost
                 
-                # Set session cookie that will work across subdomains
+                # Ensure session cookie is explicitly set with correct domain
                 response.set_cookie(
                     'sessionid',
                     session_key,
@@ -232,11 +211,12 @@ class GoogleOAuthCallbackView(APIView):
                     path='/',
                     domain=cookie_domain,
                     secure='https' in frontend_url,  # Secure only for HTTPS
-                    httponly=False,  # Allow JavaScript to read
-                    samesite='Lax' if 'localhost' in frontend_url else 'None'  # None for cross-domain in production
+                    httponly=False,  # Allow JavaScript to read (needed for cross-origin)
+                    samesite='None' if 'dovydas.space' in frontend_url else 'Lax'  # None for cross-domain in production
                 )
                 
-                print(f"DEBUG: Set-Cookie headers: {response.cookies}")
+                print(f"DEBUG: Set-Cookie domain: {cookie_domain}")
+                print(f"DEBUG: Set-Cookie samesite: {'None' if 'dovydas.space' in frontend_url else 'Lax'}")
                 
                 return response
             

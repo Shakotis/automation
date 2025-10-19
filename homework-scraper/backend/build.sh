@@ -12,7 +12,32 @@ echo "Installing Playwright browsers..."
 export PLAYWRIGHT_BROWSERS_PATH=/opt/render/project/src/.playwright-browsers
 mkdir -p "$PLAYWRIGHT_BROWSERS_PATH"
 
+# Install system dependencies for Chromium
+echo "Installing system dependencies for Chromium..."
+apt-get update || true
+apt-get install -y \
+    libnss3 \
+    libnspr4 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libdbus-1-3 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libasound2 \
+    libatspi2.0-0 \
+    || echo "Warning: Some system dependencies could not be installed. Continuing anyway..."
+
 # Install chromium with system dependency validation skipped
+echo "Installing Chromium browser..."
+PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=true playwright install chromium --with-deps || \
 PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=true playwright install chromium
 
 echo "Verifying browser installation..."
@@ -21,14 +46,22 @@ if [ -d "$PLAYWRIGHT_BROWSERS_PATH" ]; then
     ls -la "$PLAYWRIGHT_BROWSERS_PATH/" | head -20
     
     # Find the chromium executable
-    CHROMIUM_EXEC=$(find "$PLAYWRIGHT_BROWSERS_PATH" -name "chrome" -o -name "chromium" | head -1)
+    CHROMIUM_EXEC=$(find "$PLAYWRIGHT_BROWSERS_PATH" -name "chrome" -o -name "chromium" 2>/dev/null | head -1)
     if [ -n "$CHROMIUM_EXEC" ]; then
         echo "✓ Chromium executable found at: $CHROMIUM_EXEC"
+        chmod +x "$CHROMIUM_EXEC" || true
     else
         echo "⚠ Warning: Chromium executable not found in $PLAYWRIGHT_BROWSERS_PATH"
+        echo "Searching for Chromium in /opt/render/project/src/.cache/ms-playwright..."
+        find /opt/render/project/src/.cache/ms-playwright -name "chrome" -o -name "chromium" 2>/dev/null | head -5
     fi
 else
     echo "⚠ Warning: Browser directory not found at $PLAYWRIGHT_BROWSERS_PATH"
+    echo "Checking default playwright cache location..."
+    if [ -d "/opt/render/project/src/.cache/ms-playwright" ]; then
+        echo "✓ Found playwright cache at /opt/render/project/src/.cache/ms-playwright"
+        ls -la /opt/render/project/src/.cache/ms-playwright/ | head -20
+    fi
 fi
 
 echo "Collecting static files..."

@@ -1,6 +1,7 @@
 # Playwright for browser automation (replaces Selenium)
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 import requests
+import os
 
 from .credential_storage import SecureCredentialStorage
 import logging
@@ -16,14 +17,31 @@ class CredentialVerificationService:
     
     def _setup_browser_context(self, playwright, headless=True):
         """Setup Playwright browser context with appropriate options"""
-        browser = playwright.chromium.launch(
-            headless=headless,
-            args=[
+        # Check for custom browser path (important for Render deployment)
+        browser_path = os.environ.get('PLAYWRIGHT_BROWSERS_PATH')
+        
+        launch_options = {
+            'headless': headless,
+            'args': [
                 '--no-sandbox',
                 '--disable-dev-shm-usage',
                 '--disable-gpu',
+                '--disable-software-rasterizer',
+                '--disable-dev-tools',
             ]
-        )
+        }
+        
+        # If custom browser path is set, use it
+        if browser_path:
+            logger.info(f"Using custom Playwright browser path: {browser_path}")
+            os.environ['PLAYWRIGHT_BROWSERS_PATH'] = browser_path
+        
+        try:
+            browser = playwright.chromium.launch(**launch_options)
+        except Exception as e:
+            logger.error(f"Failed to launch browser: {str(e)}")
+            logger.error(f"Browser path: {browser_path if browser_path else 'default'}")
+            raise
         
         context = browser.new_context(
             viewport={'width': 1920, 'height': 1080},

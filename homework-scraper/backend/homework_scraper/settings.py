@@ -228,5 +228,11 @@ CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
+
+# Playwright settings
+# Set browser path for Playwright (especially important on Render)
+import os
+PLAYWRIGHT_BROWSERS_PATH = os.environ.get('PLAYWRIGHT_BROWSERS_PATH', 
+                                         os.path.join(BASE_DIR, '.playwright-browsers'))
 CELERY_TIMEZONE = 'Europe/Vilnius'  # Lithuanian timezone
 CELERY_ENABLE_UTC = True
