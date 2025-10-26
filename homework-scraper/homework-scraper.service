@@ -1,0 +1,16 @@
+[Unit]
+Description=Homework Scraper Django Application
+After=network.target redis-server.service
+
+[Service]
+Type=simple
+User=dovydukas
+Group=dovydukas
+WorkingDirectory=/home/dovydukas/homework-scraper-backend
+Environment="PATH=/home/dovydukas/homework-scraper-backend/venv/bin"
+ExecStart=/home/dovydukas/homework-scraper-backend/venv/bin/gunicorn homework_scraper.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 120 --access-logfile - --error-logfile -
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
