@@ -28,8 +28,26 @@ def health_check(request):
         'version': '1.0.0'
     })
 
+def api_root(request):
+    """API root endpoint with available endpoints"""
+    return JsonResponse({
+        'status': 'success',
+        'message': 'Homework Scraper API',
+        'version': '1.0.0',
+        'endpoints': {
+            'health': '/api/health',
+            'test': '/api/test/',
+            'auth': '/api/auth/',
+            'scraper': '/api/scraper/',
+            'tasks': '/api/tasks/',
+            'admin': '/admin/',
+        },
+        'documentation': 'https://github.com/Shakotis/automation'
+    })
+
 urlpatterns = [
     path('', health_check, name='root-health'),
+    path('api/', api_root, name='api-root'),
     path('api/health', health_check, name='api-health'),
     path('health', health_check, name='health'),
     path('admin/', admin.site.urls),

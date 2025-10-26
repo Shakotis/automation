@@ -31,7 +31,7 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-kmem0e9w*1)bvk)_3t$#)
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,api.dovydas.space', cast=lambda v: v.split(','))
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,192.168.0.88,84.15.189.151,api.dovydas.space', cast=lambda v: v.split(','))
 
 
 # Application definition
@@ -172,6 +172,8 @@ CSRF_TRUSTED_ORIGINS = [
     "https://www.dovydas.space",
     "https://api.dovydas.space",
     "https://nd.dovydas.space",
+    "http://192.168.0.88",
+    "http://84.15.189.151",
 ]
 CSRF_COOKIE_SAMESITE = 'None'
 CSRF_COOKIE_HTTPONLY = False
