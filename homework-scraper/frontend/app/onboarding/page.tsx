@@ -115,8 +115,8 @@ export default function OnboardingPage() {
           backButtonText="Back"
           classNames={{
             main: "bg-white dark:bg-gray-800/50 rounded-2xl shadow-2xl border border-gray-200/50 dark:border-gray-700/50 overflow-hidden",
-            step: "p-6 sm:p-10",
-            navigation: "bg-gray-50 dark:bg-gray-800/80 border-t border-gray-200/80 dark:border-gray-700/80 px-6 py-4 flex justify-between items-center"
+            content: "p-6 sm:p-10",
+            footer: "bg-gray-50 dark:bg-gray-800/80 border-t border-gray-200/80 dark:border-gray-700/80 px-6 py-4"
           }}
         >
           {/* Step 1: Google Tasks Explanation */}
