@@ -1,5 +1,0 @@
-# Ignore Node.js files that might trigger Node.js build detection
-node_modules/
-package.json
-package-lock.json
-yarn.lock

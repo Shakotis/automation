@@ -1,9 +1,0 @@
-{
-  "name": "homework-scraper-backend",
-  "version": "1.0.0",
-  "description": "Django backend - Python only, no Node.js build needed",
-  "scripts": {
-    "build": "echo 'No Node.js build needed - using Python only'"
-  },
-  "private": true
-}
