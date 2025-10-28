@@ -1,15 +1,20 @@
 import React, { useState, Children, useRef, useLayoutEffect, HTMLAttributes, ReactNode } from 'react';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 
-interface StepperProps extends HTMLAttributes<HTMLDivElement> {
+interface StepperProps extends Omit<HTMLAttributes<HTMLDivElement>, 'className'> {
   children: ReactNode;
   initialStep?: number;
   onStepChange?: (step: number) => void;
   onFinalStepCompleted?: () => void;
-  stepCircleContainerClassName?: string;
-  stepContainerClassName?: string;
-  contentClassName?: string;
-  footerClassName?: string;
+  classNames?: {
+    main?: string;
+    stepCircleContainer?: string;
+    stepContainer?: string;
+    content?: string;
+    footer?: string;
+    backButton?: string;
+    nextButton?: string;
+  };
   backButtonProps?: React.ButtonHTMLAttributes<HTMLButtonElement>;
   nextButtonProps?: React.ButtonHTMLAttributes<HTMLButtonElement>;
   backButtonText?: string;
@@ -27,10 +32,7 @@ export default function Stepper({
   initialStep = 1,
   onStepChange = () => {},
   onFinalStepCompleted = () => {},
-  stepCircleContainerClassName = '',
-  stepContainerClassName = '',
-  contentClassName = '',
-  footerClassName = '',
+  classNames = {},
   backButtonProps = {},
   nextButtonProps = {},
   backButtonText = 'Back',
@@ -76,14 +78,14 @@ export default function Stepper({
 
   return (
     <div
-      className="flex min-h-full flex-1 flex-col items-center justify-center p-4 sm:aspect-[4/3] md:aspect-[2/1]"
+      className={`flex min-h-full flex-1 flex-col items-center justify-center p-4 sm:aspect-[4/3] md:aspect-[2/1] ${classNames.main || ''}`}
       {...rest}
     >
       <div
-        className={`mx-auto w-full max-w-md rounded-4xl shadow-xl ${stepCircleContainerClassName}`}
+        className={`mx-auto w-full max-w-md rounded-4xl shadow-xl ${classNames.stepCircleContainer || ''}`}
         style={{ border: '1px solid #222' }}
       >
-        <div className={`${stepContainerClassName} flex w-full items-center p-8`}>
+        <div className={`${classNames.stepContainer || ''} flex w-full items-center p-8`}>
           {stepsArray.map((_, index) => {
             const stepNumber = index + 1;
             const isNotLastStep = index < totalSteps - 1;
@@ -119,13 +121,13 @@ export default function Stepper({
           isCompleted={isCompleted}
           currentStep={currentStep}
           direction={direction}
-          className={`space-y-2 px-8 ${contentClassName}`}
+          className={`space-y-2 px-8 ${classNames.content || ''}`}
         >
           {stepsArray[currentStep - 1]}
         </StepContentWrapper>
 
         {!isCompleted && (
-          <div className={`px-8 pb-8 ${footerClassName}`}>
+          <div className={`px-8 pb-8 ${classNames.footer || ''}`}>
             <div className={`mt-10 flex ${currentStep !== 1 ? 'justify-between' : 'justify-end'}`}>
               {currentStep !== 1 && (
                 <button
@@ -134,7 +136,7 @@ export default function Stepper({
                     currentStep === 1
                       ? 'pointer-events-none opacity-50 text-neutral-400'
                       : 'text-neutral-400 hover:text-neutral-700'
-                  }`}
+                  } ${classNames.backButton || ''}`}
                   {...backButtonProps}
                 >
                   {backButtonText}
@@ -142,7 +144,7 @@ export default function Stepper({
               )}
               <button
                 onClick={isLastStep ? handleComplete : handleNext}
-                className="duration-350 flex items-center justify-center rounded-full bg-green-500 py-1.5 px-3.5 font-medium tracking-tight text-white transition hover:bg-green-600 active:bg-green-700"
+                className={`duration-350 flex items-center justify-center rounded-full bg-green-500 py-1.5 px-3.5 font-medium tracking-tight text-white transition hover:bg-green-600 active:bg-green-700 ${classNames.nextButton || ''}`}
                 {...nextButtonProps}
               >
                 {isLastStep ? 'Complete' : nextButtonText}

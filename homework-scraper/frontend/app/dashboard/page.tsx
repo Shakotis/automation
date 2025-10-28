@@ -183,6 +183,7 @@ export default function DashboardPage() {
       // Now proceed with scraping
       const scrapePromise = (async () => {
         try {
+          // Step 1: Scrape homework
           const response = await fetch(`${API_BASE_URL}/scraper/homework/scrape`, {
             method: 'POST',
             headers: {
@@ -193,11 +194,42 @@ export default function DashboardPage() {
           
           if (response.ok) {
             const result = await response.json();
-            await fetchDashboardData();
-            const message = result.synced_count !== undefined
-              ? `Scraped ${result.scraped_count} items and synced ${result.synced_count} to Google Tasks`
-              : `Scraped ${result.scraped_count} homework items`;
-            return { success: true, message };
+            const scrapedCount = result.scraped_count || 0;
+            
+            // Step 2: Automatically sync to Google Tasks
+            try {
+              const syncResponse = await fetch(`${API_BASE_URL}/scraper/homework/sync-google-tasks/`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+              });
+              
+              if (syncResponse.ok) {
+                const syncResult = await syncResponse.json();
+                await fetchDashboardData();
+                const syncedCount = syncResult.synced_count || 0;
+                return { 
+                  success: true, 
+                  message: `Scraped ${scrapedCount} items and synced ${syncedCount} to Google Tasks` 
+                };
+              } else {
+                // Scraping succeeded but sync failed
+                await fetchDashboardData();
+                return { 
+                  success: true, 
+                  message: `Scraped ${scrapedCount} items but failed to sync to Google Tasks. You can try syncing manually from Settings.` 
+                };
+              }
+            } catch (syncError) {
+              // Scraping succeeded but sync failed
+              await fetchDashboardData();
+              return { 
+                success: true, 
+                message: `Scraped ${scrapedCount} items but failed to sync to Google Tasks. You can try syncing manually from Settings.` 
+              };
+            }
           } else if (response.status === 401) {
             setTimeout(() => {
               window.location.href = '/';
@@ -272,14 +304,21 @@ export default function DashboardPage() {
       });
 
       if (response.ok) {
-        // Update local state
+        // Update local state immediately for smooth UX
         setHomework(homework.map(hw => 
           hw.id === homeworkId 
             ? { ...hw, completed: !currentStatus, completed_at: !currentStatus ? new Date().toISOString() : null }
             : hw
         ));
-        // Refresh stats
-        fetchDashboardData();
+        
+        // Refresh stats only (not the homework list to avoid items disappearing)
+        const statsResponse = await fetch(`${API_BASE_URL}/scraper/stats`, {
+          credentials: 'include',
+        });
+        if (statsResponse.ok) {
+          const statsData = await statsResponse.json();
+          setStats(statsData);
+        }
       } else {
         const errorData = await response.json();
         setError(errorData.error || 'Failed to update homework status');

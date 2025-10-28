@@ -11,6 +11,9 @@ import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@herou
 import { addToast } from "@heroui/toast";
 import { CheckIcon, TaskIcon } from "@/components/icons";
 
+// API configuration
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:8000/api` : '/api');
+
 interface ScrapedExam {
   id: number;
   exam_name: string;
@@ -79,7 +82,7 @@ export default function ExamDateManagement() {
 
   const checkAuth = async () => {
     try {
-      const response = await fetch('/api/auth/user', {
+      const response = await fetch(`${API_BASE_URL}/auth/user`, {
         credentials: 'include',
       });
       setIsAuthenticated(response.ok);
@@ -106,7 +109,7 @@ export default function ExamDateManagement() {
   const loadScrapedExams = async () => {
     setIsLoadingExams(true);
     try {
-      const response = await fetch('/api/scraper/exams', {
+      const response = await fetch(`${API_BASE_URL}/scraper/exams`, {
         credentials: 'include',
       });
       
@@ -123,22 +126,14 @@ export default function ExamDateManagement() {
       }
       
       if (response.ok) {
-        const data = await response.json();
-        setScrapedExams(data.results || []);
-      } else {
-        addToast({
-          title: 'Failed to Load Exams',
-          description: 'Could not connect to backend server',
-          color: 'danger',
-        });
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const data = await response.json();
+          setScrapedExams(data.results || []);
+        }
       }
     } catch (error) {
-      console.error('Failed to load scraped exams:', error);
-      addToast({
-        title: 'Connection Error',
-        description: 'Failed to connect to backend server',
-        color: 'danger',
-      });
+      // Silently handle error - API may not be available yet
     } finally {
       setIsLoadingExams(false);
     }
@@ -149,7 +144,7 @@ export default function ExamDateManagement() {
     setError(null);
     
     try {
-      const response = await fetch('/api/scraper/exams/scrape', {
+      const response = await fetch(`${API_BASE_URL}/scraper/exams/scrape`, {
         method: 'POST',
         credentials: 'include',
       });
@@ -199,7 +194,7 @@ export default function ExamDateManagement() {
     setError(null);
     
     try {
-      const response = await fetch('/api/scraper/exams/sync-calendar', {
+      const response = await fetch(`${API_BASE_URL}/scraper/exams/sync-calendar`, {
         method: 'POST',
         credentials: 'include',
       });
@@ -246,31 +241,37 @@ export default function ExamDateManagement() {
 
   const loadPreferences = async () => {
     try {
-      const response = await fetch('/api/tasks/preferences/', {
+      const response = await fetch(`${API_BASE_URL}/tasks/preferences/`, {
         credentials: 'include',
       });
       
       if (response.ok) {
-        const data = await response.json();
-        setPreferences(data.preferences);
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const data = await response.json();
+          setPreferences(data.preferences);
+        }
       }
     } catch (error) {
-      console.error('Failed to load preferences:', error);
+      // Silently handle error - API may not be available yet
     }
   };
 
   const loadCalendars = async () => {
     try {
-      const response = await fetch('/api/tasks/calendar/calendars/', {
+      const response = await fetch(`${API_BASE_URL}/tasks/calendar/calendars/`, {
         credentials: 'include',
       });
       
       if (response.ok) {
-        const data = await response.json();
-        setCalendars(data.calendars || []);
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const data = await response.json();
+          setCalendars(data.calendars || []);
+        }
       }
     } catch (error) {
-      console.error('Failed to load calendars:', error);
+      // Silently handle error - API may not be available yet
     } finally {
       setIsLoading(false);
     }
@@ -281,7 +282,7 @@ export default function ExamDateManagement() {
     setError(null);
 
     try {
-      const response = await fetch('/api/tasks/preferences/', {
+      const response = await fetch(`${API_BASE_URL}/tasks/preferences/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -316,8 +317,8 @@ export default function ExamDateManagement() {
 
     try {
       const endpoint = preferences.exam_sync_target === 'calendar' 
-        ? '/api/tasks/calendar/exam/' 
-        : '/api/tasks/sync/'; // For Google Tasks
+        ? `${API_BASE_URL}/tasks/calendar/exam/`
+        : `${API_BASE_URL}/tasks/sync/`; // For Google Tasks
 
       const response = await fetch(endpoint, {
         method: 'POST',
