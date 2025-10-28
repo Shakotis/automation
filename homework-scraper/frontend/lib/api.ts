@@ -70,6 +70,13 @@ async function apiCall<T>(
     });
 
     if (!response.ok) {
+      // Handle 401 specifically for auth endpoints
+      if (response.status === 401) {
+        const error = new Error('Not authenticated');
+        (error as any).status = 401;
+        throw error;
+      }
+      
       const errorData = await response.json().catch(() => ({}));
       const errorMessage = errorData.error || errorData.detail || `HTTP ${response.status}: ${response.statusText}`;
       const error = new Error(errorMessage);
@@ -79,26 +86,29 @@ async function apiCall<T>(
 
     return response.json();
   } catch (error) {
-    // Only log unexpected errors (not auth failures or network issues on auth endpoints)
+    // Silently handle expected authentication failures to prevent console spam
     const isAuthEndpoint = endpoint.includes('/auth/user') || 
                            endpoint.includes('/auth/credentials') ||
                            endpoint.includes('/auth/google/login') ||
                            endpoint.includes('/auth/logout');
     const isAuthError = error instanceof Error && (
       error.message.includes('401') || 
+      error.message.includes('Not authenticated') ||
       error.message.includes('User not authenticated') ||
       (error as any).status === 401
     );
     const isNetworkError = error instanceof TypeError && error.message === 'Failed to fetch';
     
-    // Completely silent for auth endpoints with network errors or auth errors
+    // Completely silent for expected auth failures on auth endpoints
     const shouldBeSilent = isAuthEndpoint && (isAuthError || isNetworkError);
     
-    // Log only if it's not a silent case
+    // Only log unexpected errors
     if (!shouldBeSilent) {
-      if (error instanceof Error) {
-        console.error('[API] Error:', error.message);
-      }
+      console.error('[API] Request failed:', {
+        endpoint,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        status: (error as any).status
+      });
     }
     
     throw error;
@@ -278,6 +288,81 @@ export function withErrorHandling<T extends any[], R>(
     }
   };
 }
+
+// Monitoring API
+export const monitoringAPI = {
+  async getSystemStatus(): Promise<{
+    success: boolean;
+    system_info: {
+      hostname: string;
+      system: string;
+      release: string;
+      version: string;
+      machine: string;
+      processor: string;
+      timestamp: string;
+      uptime?: string;
+      memory?: string;
+      disk?: string;
+      cpu?: string;
+    };
+  }> {
+    return apiCall('/monitoring/system-status');
+  },
+
+  async getRunningServices(): Promise<{
+    success: boolean;
+    services: Array<{
+      name: string;
+      status: string;
+      details: string;
+    }>;
+  }> {
+    return apiCall('/monitoring/services');
+  },
+
+  async getApplicationLogs(params: {
+    type?: 'django' | 'celery' | 'celery-beat' | 'nginx' | 'nginx-error';
+    lines?: number;
+  } = {}): Promise<{
+    success: boolean;
+    log_type: string;
+    logs: string;
+    lines_requested: number;
+  }> {
+    const searchParams = new URLSearchParams();
+    if (params.type) searchParams.append('type', params.type);
+    if (params.lines) searchParams.append('lines', params.lines.toString());
+
+    const query = searchParams.toString();
+    return apiCall(`/monitoring/logs${query ? `?${query}` : ''}`);
+  },
+
+  async getRecentErrors(lines: number = 50): Promise<{
+    success: boolean;
+    errors: string;
+    lines_requested: number;
+  }> {
+    return apiCall(`/monitoring/errors?lines=${lines}`);
+  },
+
+  async getProcessInfo(): Promise<{
+    success: boolean;
+    processes: string;
+  }> {
+    return apiCall('/monitoring/processes');
+  },
+
+  async getMonitoringInfo(): Promise<{
+    success: boolean;
+    message: string;
+    endpoints: Record<string, string>;
+    log_types: string[];
+    note: string;
+  }> {
+    return apiCall('/monitoring/');
+  },
+};
 
 // Hooks for React Query (if you want to use it)
 export const queryKeys = {

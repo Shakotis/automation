@@ -39,6 +39,7 @@ interface UserProfile {
 export const Navbar = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   useEffect(() => {
     checkAuthStatus();
@@ -61,6 +62,7 @@ export const Navbar = () => {
     try {
       await authAPI.logout();
       setUser(null);
+      setIsMenuOpen(false); // Close mobile menu
       addToast({
         title: 'Signed Out',
         description: 'You have been successfully signed out',
@@ -102,13 +104,19 @@ export const Navbar = () => {
     }
     return user.email;
   };
+  
   return (
-    <HeroUINavbar maxWidth="xl" position="sticky">
+    <HeroUINavbar 
+      maxWidth="xl" 
+      position="sticky"
+      isMenuOpen={isMenuOpen}
+      onMenuOpenChange={setIsMenuOpen}
+    >
       <NavbarContent className="basis-1/5 sm:basis-full" justify="start">
-        <NavbarBrand as="li" className="gap-3 max-w-fit">
-          <NextLink className="flex justify-start items-center gap-2" href="/">
-            <ScrapingIcon size={28} />
-            <p className="font-bold text-primary">Homework Scraper</p>
+        <NavbarBrand as="li" className="gap-2 sm:gap-3 max-w-fit">
+          <NextLink className="flex justify-start items-center gap-1 sm:gap-2" href="/">
+            <ScrapingIcon size={24} className="sm:w-7 sm:h-7" />
+            <p className="font-bold text-primary text-sm sm:text-base">Homework Scraper</p>
           </NextLink>
         </NavbarBrand>
         <ul className="hidden lg:flex gap-4 justify-start ml-2">
@@ -192,18 +200,18 @@ export const Navbar = () => {
       </NavbarContent>
 
       <NavbarMenu>
-        <div className="mx-4 mt-2 flex flex-col gap-2">
+        <div className="mx-4 mt-2 flex flex-col gap-3">
           {user && (
-            <NavbarMenuItem>
+            <NavbarMenuItem className="border-b border-default-200 pb-3">
               <div className="flex items-center gap-3 py-2">
                 <Avatar
                   color="primary"
                   name={getAvatarText()}
                   size="sm"
                 />
-                <div>
-                  <p className="font-semibold text-sm">{getUserDisplayName()}</p>
-                  <p className="text-xs text-default-500">{user.email}</p>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm truncate">{getUserDisplayName()}</p>
+                  <p className="text-xs text-default-500 truncate">{user.email}</p>
                 </div>
               </div>
             </NavbarMenuItem>
@@ -213,12 +221,13 @@ export const Navbar = () => {
             <NavbarMenuItem key={`${item}-${index}`}>
               <NextLink
                 className={clsx(
-                  "w-full",
+                  "w-full block py-2 px-2 rounded-lg hover:bg-default-100",
                   index === siteConfig.navMenuItems.length - 1
                     ? "text-danger"
                     : "text-foreground"
                 )}
                 href={item.href}
+                onClick={() => setIsMenuOpen(false)}
               >
                 {item.label}
               </NextLink>
@@ -228,18 +237,26 @@ export const Navbar = () => {
           {user ? (
             <>
               <NavbarMenuItem>
-                <NextLink className="w-full text-foreground" href="/dashboard">
+                <NextLink 
+                  className="w-full block py-2 px-2 rounded-lg hover:bg-default-100 text-foreground" 
+                  href="/dashboard"
+                  onClick={() => setIsMenuOpen(false)}
+                >
                   Homework
                 </NextLink>
               </NavbarMenuItem>
               <NavbarMenuItem>
-                <NextLink className="w-full text-foreground" href="/settings">
+                <NextLink 
+                  className="w-full block py-2 px-2 rounded-lg hover:bg-default-100 text-foreground" 
+                  href="/settings"
+                  onClick={() => setIsMenuOpen(false)}
+                >
                   Settings
                 </NextLink>
               </NavbarMenuItem>
-              <NavbarMenuItem>
+              <NavbarMenuItem className="border-t border-default-200 pt-3">
                 <button 
-                  className="w-full text-left text-danger" 
+                  className="w-full text-left py-2 px-2 rounded-lg hover:bg-danger-50 text-danger font-semibold" 
                   onClick={handleLogout}
                 >
                   Log Out
@@ -247,11 +264,12 @@ export const Navbar = () => {
               </NavbarMenuItem>
             </>
           ) : (
-            <NavbarMenuItem>
+            <NavbarMenuItem className="border-t border-default-200 pt-3">
               <button 
-                className="w-full text-left text-primary font-semibold"
+                className="w-full text-left py-2 px-2 rounded-lg hover:bg-primary-50 text-primary font-semibold flex items-center gap-2"
                 onClick={handleGoogleSignIn}
               >
+                <GoogleIcon size={16} />
                 Sign In with Google
               </button>
             </NavbarMenuItem>

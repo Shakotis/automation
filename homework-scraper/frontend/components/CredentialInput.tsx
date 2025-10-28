@@ -309,12 +309,12 @@ export default function CredentialInput({ selectedSites, onComplete, onBack }: C
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <Card className="mb-6">
-        <CardHeader className="pb-0">
+    <div className="max-w-4xl mx-auto p-4 sm:p-6">
+      <Card className="mb-4 sm:mb-6">
+        <CardHeader className="pb-0 p-4">
           <div className="w-full text-center">
-            <h1 className="text-2xl font-bold mb-2">Setup Your Credentials 🔐</h1>
-            <p className="text-default-600">
+            <h1 className="text-xl sm:text-2xl font-bold mb-2">Setup Your Credentials 🔐</h1>
+            <p className="text-default-600 text-xs sm:text-sm">
               Enter your login credentials for each selected site. We'll verify they work and store them securely.
             </p>
           </div>
@@ -322,27 +322,29 @@ export default function CredentialInput({ selectedSites, onComplete, onBack }: C
       </Card>
 
       {error && (
-        <Card className="mb-6 border-danger">
-          <CardBody>
-            <p className="text-danger text-center">{error}</p>
+        <Card className="mb-4 sm:mb-6 border-danger">
+          <CardBody className="p-4">
+            <p className="text-danger text-center text-xs sm:text-sm">{error}</p>
           </CardBody>
         </Card>
       )}
 
-      <div className="space-y-6 mb-8">
+      <div className="space-y-4 sm:space-y-6 mb-6 sm:mb-8">
         {sites.map((site) => (
-          <Card key={site.id} className="p-6" data-site-card={site.id}>
-            <CardHeader className="px-0 pt-0">
-              <div className="flex items-center justify-between w-full">
-                <div>
-                  <h3 className="text-lg font-semibold">{site.name}</h3>
-                  <p className="text-default-600 text-sm">{site.description}</p>
+          <Card key={site.id} className="p-4 sm:p-6" data-site-card={site.id}>
+            <CardHeader className="px-0 pt-0 pb-3">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between w-full gap-3">
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base sm:text-lg font-semibold">{site.name}</h3>
+                  <p className="text-default-600 text-xs sm:text-sm break-words">{site.description}</p>
                 </div>
                 {verificationStatus[site.id] !== null && (
                   <Chip
                     color={verificationStatus[site.id] ? "success" : "danger"}
                     variant="flat"
+                    size="sm"
                     startContent={verificationStatus[site.id] ? <CheckIcon size={16} /> : <WarningIcon size={16} />}
+                    className="shrink-0"
                   >
                     {verificationStatus[site.id] ? "Verified" : "Failed"}
                   </Chip>
@@ -351,7 +353,7 @@ export default function CredentialInput({ selectedSites, onComplete, onBack }: C
             </CardHeader>
             
             <CardBody className="px-0 pb-0">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div className="grid grid-cols-1 gap-4 mb-4">
                 <Input
                   label="Username/Email"
                   placeholder="Enter your username or email"
@@ -361,6 +363,10 @@ export default function CredentialInput({ selectedSites, onComplete, onBack }: C
                   autoComplete="off"
                   data-site={site.id}
                   isRequired
+                  classNames={{
+                    input: "text-sm",
+                    label: "text-xs sm:text-sm"
+                  }}
                 />
                 <Input
                   label="Password"
@@ -378,13 +384,17 @@ export default function CredentialInput({ selectedSites, onComplete, onBack }: C
                       onClick={() => togglePasswordVisibility(site.id)}
                     >
                       {showPasswords[site.id] ? (
-                        <EyeSlashFilledIcon className="text-2xl text-default-400 pointer-events-none" />
+                        <EyeSlashFilledIcon className="text-xl sm:text-2xl text-default-400 pointer-events-none" />
                       ) : (
-                        <EyeFilledIcon className="text-2xl text-default-400 pointer-events-none" />
+                        <EyeFilledIcon className="text-xl sm:text-2xl text-default-400 pointer-events-none" />
                       )}
                     </button>
                   }
                   isRequired
+                  classNames={{
+                    input: "text-sm",
+                    label: "text-xs sm:text-sm"
+                  }}
                 />
               </div>
               
@@ -395,6 +405,10 @@ export default function CredentialInput({ selectedSites, onComplete, onBack }: C
                   value={credentials[site.id]?.url || ''}
                   onChange={(e) => handleCredentialChange(site.id, 'url', e.target.value)}
                   className="mb-4"
+                  classNames={{
+                    input: "text-sm",
+                    label: "text-xs sm:text-sm"
+                  }}
                 />
               )}
               
@@ -404,7 +418,8 @@ export default function CredentialInput({ selectedSites, onComplete, onBack }: C
                 onPress={() => verifyCredentials(site.id)}
                 isDisabled={!credentials[site.id]?.username || !credentials[site.id]?.password}
                 isLoading={isVerifying[site.id]}
-                className="w-full md:w-auto"
+                className="w-full"
+                size="md"
               >
                 {isVerifying[site.id] ? 'Verifying...' : 'Test Connection'}
               </Button>
@@ -417,8 +432,9 @@ export default function CredentialInput({ selectedSites, onComplete, onBack }: C
                     className="w-full"
                     label="Verification Progress"
                     showValueLabel={true}
+                    size="sm"
                   />
-                  <p className="text-sm text-default-600">
+                  <p className="text-xs sm:text-sm text-default-600">
                     {verificationMessage[site.id] || 'Starting verification...'}
                   </p>
                 </div>
@@ -428,7 +444,7 @@ export default function CredentialInput({ selectedSites, onComplete, onBack }: C
         ))}
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center items-stretch">
         {onBack && (
           <Button
             variant="bordered"
@@ -446,7 +462,7 @@ export default function CredentialInput({ selectedSites, onComplete, onBack }: C
           size="lg"
           onPress={handleSaveAndVerifyAll}
           isLoading={isSaving}
-          className="w-full sm:w-auto"
+          className="w-full sm:w-auto min-w-[200px]"
         >
           {isSaving ? 'Saving & Verifying...' : 'Save & Verify All'}
         </Button>
@@ -457,25 +473,32 @@ export default function CredentialInput({ selectedSites, onComplete, onBack }: C
         isOpen={showVerificationModal} 
         onClose={() => setShowVerificationModal(false)}
         size="2xl"
+        scrollBehavior="inside"
+        classNames={{
+          base: "mx-4",
+          body: "py-4"
+        }}
       >
         <ModalContent>
-          <ModalHeader>
-            <h3 className="text-xl font-bold">Verification Results</h3>
+          <ModalHeader className="p-4 pb-0">
+            <h3 className="text-lg sm:text-xl font-bold">Verification Results</h3>
           </ModalHeader>
-          <ModalBody>
-            <div className="space-y-4">
+          <ModalBody className="p-4">
+            <div className="space-y-3 sm:space-y-4">
               {Object.entries(verificationResults).map(([siteId, result]) => {
                 const site = sites.find(s => s.id === siteId);
                 return (
-                  <div key={siteId} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <h4 className="font-semibold">{site?.name}</h4>
-                      <p className="text-sm text-default-600">{result.message}</p>
+                  <div key={siteId} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 border rounded-lg gap-3">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-semibold text-sm sm:text-base">{site?.name}</h4>
+                      <p className="text-xs sm:text-sm text-default-600 break-words">{result.message}</p>
                     </div>
                     <Chip
                       color={result.success ? "success" : "danger"}
                       variant="flat"
+                      size="sm"
                       startContent={result.success ? <CheckIcon size={16} /> : <WarningIcon size={16} />}
+                      className="shrink-0 self-start sm:self-center"
                     >
                       {result.success ? "✓ Verified" : "✗ Failed"}
                     </Chip>
@@ -484,17 +507,18 @@ export default function CredentialInput({ selectedSites, onComplete, onBack }: C
               })}
             </div>
             
-            <div className="mt-6 p-4 bg-default-100 rounded-lg">
-              <p className="text-sm text-default-700">
+            <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-default-100 rounded-lg">
+              <p className="text-xs sm:text-sm text-default-700">
                 <strong>Note:</strong> Failed verifications might be due to incorrect credentials, 
                 site maintenance, or security restrictions. You can update credentials later in your dashboard.
               </p>
             </div>
           </ModalBody>
-          <ModalFooter>
+          <ModalFooter className="p-4 pt-0">
             <Button
               color="primary"
               onPress={handleCompleteSetup}
+              className="w-full sm:w-auto"
             >
               Continue to Dashboard
             </Button>

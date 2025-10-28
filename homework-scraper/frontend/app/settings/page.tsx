@@ -233,16 +233,27 @@ export default function SettingsPage() {
   const handleVerifyCredential = async (site: string) => {
     setVerifying(site);
     
+    // Create timeout promise (60 seconds for slow sites)
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error('Verification is taking longer than expected. The site may be slow or temporarily unavailable. Please try again later.'));
+      }, 60000); // 60 seconds timeout
+    });
+    
     const verifyPromise = (async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/auth/verify-credentials`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify({ site }),
-        });
+        // Race between actual verification and timeout
+        const response = await Promise.race([
+          fetch(`${API_BASE_URL}/auth/verify-credentials`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({ site }),
+          }),
+          timeoutPromise
+        ]);
 
         if (response.ok) {
           const data = await response.json();
@@ -251,20 +262,19 @@ export default function SettingsPage() {
           if (data.success) {
             return { success: true, message: `Credentials verified successfully for ${site}` };
           } else {
-            throw new Error(data.message);
+            throw new Error(data.message || 'Verification failed - please check your credentials');
           }
         } else {
           let errorMessage = 'Verification failed';
           try {
             const errorData = await response.json();
-            errorMessage = errorData.error || errorMessage;
+            errorMessage = errorData.error || errorData.detail || errorMessage;
           } catch (e) {
             errorMessage = response.statusText || errorMessage;
           }
           throw new Error(errorMessage);
         }
       } catch (error) {
-        console.error('Error verifying credential:', error);
         const errorMessage = error instanceof Error ? error.message : 'Network error during verification';
         throw new Error(errorMessage);
       } finally {
@@ -392,13 +402,13 @@ export default function SettingsPage() {
 
     return (
       <div className="space-y-3">
-        <div className="flex justify-between items-start">
-          <div className="flex-1">
-            <h3 className="font-medium">{displayName}</h3>
-            <p className="text-sm text-default-500">{description}</p>
+        <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
+          <div className="flex-1 min-w-0">
+            <h3 className="font-medium text-sm sm:text-base">{displayName}</h3>
+            <p className="text-xs sm:text-sm text-default-500">{description}</p>
             {credential && (
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-xs text-default-400">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 mt-2 flex-wrap">
+                <span className="text-xs text-default-400 truncate">
                   Username: {credential.username}
                 </span>
                 <Chip 
@@ -416,7 +426,7 @@ export default function SettingsPage() {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
             {credential && (
               <Button
                 size="sm"
@@ -427,6 +437,7 @@ export default function SettingsPage() {
                 }}
                 isLoading={verifying === site}
                 disabled={verifying === site}
+                className="flex-1 sm:flex-none"
               >
                 {verifying === site ? 'Verifying...' : 'Verify'}
               </Button>
@@ -439,6 +450,7 @@ export default function SettingsPage() {
                 if (!requireAuth('manage credentials')) return;
                 toggleForm();
               }}
+              className="flex-1 sm:flex-none"
             >
               {credential ? 'Edit' : 'Add Credentials'}
             </Button>
@@ -447,7 +459,7 @@ export default function SettingsPage() {
 
         {isExpanded && (
           <Card className="bg-default-50">
-            <CardBody className="space-y-4">
+            <CardBody className="space-y-4 p-4">
               <Input
                 label="Username/Email"
                 placeholder="Enter your username or email"
@@ -455,6 +467,10 @@ export default function SettingsPage() {
                 onChange={(e) => setLocalUsername(e.target.value)}
                 variant="bordered"
                 isRequired
+                classNames={{
+                  input: "text-sm",
+                  label: "text-xs sm:text-sm"
+                }}
               />
               <Input
                 label="Password"
@@ -464,33 +480,40 @@ export default function SettingsPage() {
                 onChange={(e) => setLocalPassword(e.target.value)}
                 variant="bordered"
                 isRequired
+                classNames={{
+                  input: "text-sm",
+                  label: "text-xs sm:text-sm"
+                }}
                 endContent={
                   <Button
                     size="sm"
                     variant="light"
                     onClick={() => setShowPassword(!showPassword)}
+                    isIconOnly
                   >
                     {showPassword ? '👁️‍🗨️' : '👁️'}
                   </Button>
                 }
               />
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <Button
                   color="primary"
                   onClick={handleSave}
                   isDisabled={!localUsername || !localPassword}
                   isLoading={savingCredential === site}
+                  className="w-full sm:w-auto"
                 >
                   {savingCredential === site ? 'Saving...' : 'Save & Verify'}
                 </Button>
                 <Button
                   variant="bordered"
                   onClick={toggleForm}
+                  className="w-full sm:w-auto"
                 >
                   Cancel
                 </Button>
               </div>
-              <div className="text-xs text-default-500">
+              <div className="text-xs text-default-500 space-y-1">
                 <p>🔒 Your credentials are encrypted and stored securely.</p>
                 <p>⚡ Verification tests login to ensure credentials work correctly.</p>
               </div>
@@ -516,19 +539,19 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-4xl">
-      <h1 className={title({ class: "mb-8", size: "sm" })}>Settings</h1>
+    <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 max-w-4xl">
+      <h1 className={title({ class: "mb-4 sm:mb-8 text-2xl sm:text-3xl", size: "sm" })}>Settings</h1>
 
       {/* Credentials Setup Prompt */}
       {showCredentialsPrompt && userProfile && (
-        <Card className="mb-6 border-primary-200 bg-primary-50">
-          <CardBody>
+        <Card className="mb-4 sm:mb-6 border-primary-200 bg-primary-50">
+          <CardBody className="p-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <div className="text-primary-600 text-2xl pt-1">🔐</div>
-                <div>
-                  <h3 className="font-semibold text-primary-800">Setup Your Site Credentials</h3>
-                  <p className="text-primary-700 text-sm">
+              <div className="flex items-start gap-3 flex-1">
+                <div className="text-primary-600 text-xl sm:text-2xl pt-1 shrink-0">🔐</div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-primary-800 text-sm sm:text-base">Setup Your Site Credentials</h3>
+                  <p className="text-primary-700 text-xs sm:text-sm break-words">
                     To start scraping homework, please add your Manodienynas or Eduka credentials below.
                   </p>
                 </div>
@@ -538,7 +561,7 @@ export default function SettingsPage() {
                 size="sm"
                 variant="light"
                 onClick={() => setShowCredentialsPrompt(false)}
-                className="self-start sm:self-center"
+                className="self-start sm:self-center shrink-0"
               >
                 ✕
               </Button>
@@ -549,20 +572,20 @@ export default function SettingsPage() {
 
       {/* Authentication Warning */}
       {!userProfile && (
-        <Card className="mb-6 border-warning-200 bg-warning-50">
-          <CardBody>
-            <div className="flex items-start gap-3">
-              <div className="text-warning-600 text-2xl pt-1">⚠️</div>
-              <div>
-                <h3 className="font-semibold text-warning-800">Authentication Required</h3>
-                <p className="text-warning-700 text-sm">
+        <Card className="mb-4 sm:mb-6 border-warning-200 bg-warning-50">
+          <CardBody className="p-4">
+            <div className="flex flex-col sm:flex-row items-start gap-3">
+              <div className="text-warning-600 text-xl sm:text-2xl pt-1 shrink-0">⚠️</div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-warning-800 text-sm sm:text-base">Authentication Required</h3>
+                <p className="text-warning-700 text-xs sm:text-sm mb-3">
                   You need to sign in with Google to save credentials and access all settings.
                 </p>
                 <Button
                   size="sm"
                   color="warning"
                   variant="bordered"
-                  className="mt-2"
+                  className="w-full sm:w-auto"
                   onClick={() => window.location.href = '/auth/google'}
                 >
                   Sign In with Google
@@ -574,19 +597,24 @@ export default function SettingsPage() {
       )}
 
       {/* User Profile */}
-      <Card className="mb-6">
-        <CardHeader>
-          <h2 className="text-xl font-semibold">User Profile</h2>
+      <Card className="mb-4 sm:mb-6">
+        <CardHeader className="p-4">
+          <h2 className="text-lg sm:text-xl font-semibold">User Profile</h2>
         </CardHeader>
-        <CardBody>
+        <CardBody className="p-4 pt-0">
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <div>
                 <Input
                   label="Email"
                   value={userProfile?.email || ''}
                   isReadOnly
                   variant="bordered"
+                  className="w-full"
+                  classNames={{
+                    input: "text-sm",
+                    label: "text-xs sm:text-sm"
+                  }}
                 />
               </div>
               <div>
@@ -595,25 +623,31 @@ export default function SettingsPage() {
                   value={`${userProfile?.first_name || ''} ${userProfile?.last_name || ''}`}
                   isReadOnly
                   variant="bordered"
+                  className="w-full"
+                  classNames={{
+                    input: "text-sm",
+                    label: "text-xs sm:text-sm"
+                  }}
                 />
               </div>
             </div>
             
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-              <span className="text-sm font-medium">Google OAuth:</span>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 pt-2">
+              <span className="text-xs sm:text-sm font-medium">Google OAuth:</span>
               {userProfile?.has_google_oauth ? (
-                <Chip color="success" variant="flat">
+                <Chip color="success" variant="flat" size="sm">
                   ✓ Connected
                 </Chip>
               ) : (
-                <div className="flex items-center gap-2">
-                  <Chip color="warning" variant="flat">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
+                  <Chip color="warning" variant="flat" size="sm">
                     Not Connected
                   </Chip>
                   <Button
                     size="sm"
                     color="primary"
                     onPress={handleGoogleAuth}
+                    className="w-full sm:w-auto"
                   >
                     Connect Google Account
                   </Button>
@@ -625,16 +659,16 @@ export default function SettingsPage() {
       </Card>
 
       {/* Scraping Settings */}
-      <Card className="mb-6">
-        <CardHeader>
-          <h2 className="text-xl font-semibold">Scraping Settings</h2>
+      <Card className="mb-4 sm:mb-6">
+        <CardHeader className="p-4">
+          <h2 className="text-lg sm:text-xl font-semibold">Scraping Settings</h2>
         </CardHeader>
-        <CardBody>
-          <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-              <div>
-                <h3 className="font-medium">Enable Manodienynas.lt</h3>
-                <p className="text-sm text-default-500">
+        <CardBody className="p-4 pt-0">
+          <div className="space-y-4 sm:space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
+              <div className="flex-1">
+                <h3 className="font-medium text-sm sm:text-base">Enable Manodienynas.lt</h3>
+                <p className="text-xs sm:text-sm text-default-500">
                   Scrape homework from Manodienynas.lt
                 </p>
                 {preferences.last_scraped_manodienynas && (
@@ -648,12 +682,12 @@ export default function SettingsPage() {
                 onValueChange={(value) => 
                   setPreferences(prev => ({ ...prev, enable_manodienynas: value }))
                 }
-                className="self-end sm:self-center"
+                className="shrink-0"
               />
             </div>
 
             {preferences.enable_manodienynas && (
-              <div className="pl-4 border-l-2 border-primary-200">
+              <div className="pl-0 sm:pl-4 border-l-0 sm:border-l-2 border-primary-200">
                 <CredentialSection
                   site="manodienynas"
                   displayName="Manodienynas Credentials"
@@ -664,10 +698,10 @@ export default function SettingsPage() {
 
             <Divider />
 
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-              <div>
-                <h3 className="font-medium">Enable Eduka.lt</h3>
-                <p className="text-sm text-default-500">
+            <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
+              <div className="flex-1">
+                <h3 className="font-medium text-sm sm:text-base">Enable Eduka.lt</h3>
+                <p className="text-xs sm:text-sm text-default-500">
                   Scrape homework from Eduka.lt
                 </p>
                 {preferences.last_scraped_eduka && (
@@ -681,12 +715,12 @@ export default function SettingsPage() {
                 onValueChange={(value) => 
                   setPreferences(prev => ({ ...prev, enable_eduka: value }))
                 }
-                className="self-end sm:self-center"
+                className="shrink-0"
               />
             </div>
 
             {preferences.enable_eduka && (
-              <div className="pl-4 border-l-2 border-secondary-200">
+              <div className="pl-0 sm:pl-4 border-l-0 sm:border-l-2 border-secondary-200">
                 <CredentialSection
                   site="eduka"
                   displayName="Eduka Credentials"
@@ -699,21 +733,21 @@ export default function SettingsPage() {
       </Card>
 
       {/* Sync Settings */}
-      <Card className="mb-6">
-        <CardHeader>
-          <h2 className="text-xl font-semibold">Google Tasks Integration</h2>
+      <Card className="mb-4 sm:mb-6">
+        <CardHeader className="p-4">
+          <h2 className="text-lg sm:text-xl font-semibold">Google Tasks Integration</h2>
         </CardHeader>
-        <CardBody>
+        <CardBody className="p-4 pt-0">
           <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-default-50 rounded-lg gap-4">
-              <div>
-                <h3 className="font-medium">Google Tasks Sync</h3>
-                <p className="text-sm text-default-500">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 sm:p-4 bg-default-50 rounded-lg gap-3">
+              <div className="flex-1">
+                <h3 className="font-medium text-sm sm:text-base">Google Tasks Sync</h3>
+                <p className="text-xs sm:text-sm text-default-500">
                   Sync homework to "Homework" task list in Google Tasks
                 </p>
               </div>
               {userProfile?.has_google_oauth ? (
-                <Chip color="success" variant="flat">
+                <Chip color="success" variant="flat" size="sm" className="shrink-0">
                   ✓ Ready
                 </Chip>
               ) : (
@@ -721,7 +755,7 @@ export default function SettingsPage() {
                   size="sm"
                   color="primary"
                   onPress={handleGoogleAuth}
-                  className="w-full sm:w-auto"
+                  className="w-full sm:w-auto shrink-0"
                 >
                   Setup Google Tasks
                 </Button>
@@ -741,6 +775,11 @@ export default function SettingsPage() {
                 variant="bordered"
                 className="w-full"
                 description="Choose what to display as the task title in Google Tasks"
+                classNames={{
+                  label: "text-xs sm:text-sm",
+                  value: "text-xs sm:text-sm",
+                  description: "text-xs"
+                }}
               >
                 <SelectItem key="title">
                   Task Title (e.g., "Complete math worksheet")
@@ -753,7 +792,7 @@ export default function SettingsPage() {
 
             <Divider />
 
-            <div className="text-sm text-default-500 space-y-1">
+            <div className="text-xs sm:text-sm text-default-500 space-y-1">
               <p>• Homework will be created as tasks in your Google Tasks "Homework" list.</p>
               <p>• Due dates will be preserved when available.</p>
               <p>• Task descriptions will include subject and source information.</p>
