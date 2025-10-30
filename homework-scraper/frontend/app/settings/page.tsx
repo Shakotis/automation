@@ -70,6 +70,8 @@ export default function SettingsPage() {
   const [verifying, setVerifying] = useState<string | null>(null);
   const [savingCredential, setSavingCredential] = useState<string | null>(null);
   const [showCredentialsPrompt, setShowCredentialsPrompt] = useState(false);
+  const [generatingSchedule, setGeneratingSchedule] = useState(false);
+  const [scheduleDownloadUrl, setScheduleDownloadUrl] = useState<string | null>(null);
 
   const requireAuth = (action: string) => {
     if (!userProfile) {
@@ -345,6 +347,48 @@ export default function SettingsPage() {
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleGenerateSchedule = async () => {
+    setGeneratingSchedule(true);
+    setScheduleDownloadUrl(null);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/scraper/schedule/generate`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.download_url) {
+          setScheduleDownloadUrl(data.download_url);
+          addToast({
+            title: "Schedule Generated",
+            description: "Your lesson schedule is ready to download!",
+            color: "success",
+          });
+        } else {
+          throw new Error(data.message || 'Failed to generate schedule');
+        }
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || errorData.detail || 'Failed to generate schedule');
+      }
+    } catch (error) {
+      console.error('Error generating schedule:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Could not generate schedule. Please ensure your Manodienynas credentials are saved and verified.';
+      addToast({
+        title: "Generation Failed",
+        description: errorMessage,
+        color: "danger",
+      });
+    } finally {
+      setGeneratingSchedule(false);
     }
   };
 
@@ -796,6 +840,69 @@ export default function SettingsPage() {
               <p>• Homework will be created as tasks in your Google Tasks "Homework" list.</p>
               <p>• Due dates will be preserved when available.</p>
               <p>• Task descriptions will include subject and source information.</p>
+            </div>
+          </div>
+        </CardBody>
+      </Card>
+
+      {/* Schedule Generator */}
+      <Card className="mb-4 sm:mb-6">
+        <CardHeader className="p-4">
+          <h2 className="text-lg sm:text-xl font-semibold">Lesson Schedule</h2>
+        </CardHeader>
+        <CardBody className="p-4 pt-0">
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 sm:p-4 bg-default-50 rounded-lg gap-3">
+              <div className="flex-1">
+                <h3 className="font-medium text-sm sm:text-base">Generate Schedule PNG</h3>
+                <p className="text-xs sm:text-sm text-default-500">
+                  Download your lesson schedule as a formatted PNG image
+                </p>
+              </div>
+              <Button
+                size="sm"
+                color="primary"
+                onPress={() => {
+                  if (!requireAuth('generate schedule')) return;
+                  handleGenerateSchedule();
+                }}
+                isLoading={generatingSchedule}
+                disabled={generatingSchedule || !userProfile}
+                className="w-full sm:w-auto shrink-0"
+              >
+                {generatingSchedule ? 'Generating...' : 'Generate Schedule'}
+              </Button>
+            </div>
+
+            {scheduleDownloadUrl && (
+              <div className="p-3 sm:p-4 bg-success-50 rounded-lg space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-success-600 text-lg">✓</span>
+                  <h4 className="font-medium text-success-800 text-sm sm:text-base">Schedule Ready!</h4>
+                </div>
+                <p className="text-xs sm:text-sm text-success-700">
+                  Your lesson schedule has been generated successfully.
+                </p>
+                <Button
+                  size="sm"
+                  color="success"
+                  variant="bordered"
+                  as="a"
+                  href={`${API_BASE_URL}${scheduleDownloadUrl}`}
+                  download
+                  className="w-full sm:w-auto"
+                >
+                  📥 Download Schedule
+                </Button>
+              </div>
+            )}
+
+            <Divider />
+
+            <div className="text-xs sm:text-sm text-default-500 space-y-1">
+              <p>• Schedule will be scraped from manodienynas.lt and formatted as a PNG.</p>
+              <p>• Requires valid Manodienynas credentials to be saved and verified.</p>
+              <p>• The image file will have a creation date of June 21, 2026.</p>
             </div>
           </div>
         </CardBody>
