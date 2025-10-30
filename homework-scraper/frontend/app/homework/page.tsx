@@ -155,12 +155,14 @@ export default function HomeworkPage() {
   const handleSync = async (homeworkIds?: number[]) => {
     setSyncing(true);
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/scraper/homework/sync-google-tasks/', {
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.dovydas.space/api';
+      const response = await fetch(`${API_BASE_URL}/tasks/sync`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json'
         },
         credentials: 'include',
+        body: JSON.stringify({ homework_ids: homeworkIds }),
       });
       
       if (response.ok) {

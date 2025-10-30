@@ -198,12 +198,13 @@ export default function DashboardPage() {
             
             // Step 2: Automatically sync to Google Tasks
             try {
-              const syncResponse = await fetch(`${API_BASE_URL}/scraper/homework/sync-google-tasks/`, {
+              const syncResponse = await fetch(`${API_BASE_URL}/tasks/sync`, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
                 },
                 credentials: 'include',
+                body: JSON.stringify({}), // Sync all unsynced homework
               });
               
               if (syncResponse.ok) {
@@ -433,7 +434,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Completion Rate Progress */}
-      {stats && stats.tomorrow_total > 0 && (
+      {stats && (stats.tomorrow_total > 0 || stats.completed_homework > 0) && (
         <Card className="mb-8">
           <CardHeader>
             <h3 className="text-base sm:text-lg font-semibold">Tomorrow's Tasks Completion</h3>
@@ -443,14 +444,20 @@ export default function DashboardPage() {
               <div className="flex justify-between items-center mb-2">
                 <span className="text-xs sm:text-sm">Completion Rate (Tomorrow)</span>
                 <span className="text-xs sm:text-sm text-default-500">
-                  {stats.completed_homework}/{stats.tomorrow_total} ({Math.round((stats.completed_homework / stats.tomorrow_total) * 100)}%)
+                  {stats.completed_homework}/{Math.max(stats.tomorrow_total, stats.completed_homework)} ({stats.tomorrow_total > 0 ? Math.round((stats.completed_homework / stats.tomorrow_total) * 100) : 100}%)
                 </span>
               </div>
               <Progress
-                value={(stats.completed_homework / stats.tomorrow_total) * 100}
+                value={stats.tomorrow_total > 0 ? Math.min((stats.completed_homework / stats.tomorrow_total) * 100, 100) : 100}
                 color="success"
                 size="md"
+                showValueLabel={true}
               />
+              {(stats.tomorrow_total === 0 && stats.completed_homework > 0) || (stats.completed_homework >= stats.tomorrow_total && stats.tomorrow_total > 0) ? (
+                <p className="mt-2 text-xs sm:text-sm text-success font-medium">
+                  🎉 All tasks completed! Great job!
+                </p>
+              ) : null}
             </div>
           </CardBody>
         </Card>
