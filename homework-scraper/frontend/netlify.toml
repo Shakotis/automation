@@ -1,41 +1,51 @@
-# Netlify Configuration for Next.js Static Export
+# Netlify Configuration for Homework Scraper Frontend
 # Documentation: https://docs.netlify.com/configure-builds/file-based-configuration/
 
 [build]
-  # Build command
+  # Build command for Next.js
   command = "npm run build"
   
-  # Publish directory - Next.js static export outputs to 'out'
+  # Directory to publish (Next.js static export or standalone output)
   publish = "out"
   
-  # Base directory is not needed since we're already in frontend folder in Netlify settings
+  # Base directory for build
+  base = "frontend"
 
 [build.environment]
-  # Node version
+  # Node version (use same as development)
   NODE_VERSION = "20"
   
-  # API URL for production
-  NEXT_PUBLIC_API_URL = "https://api.dovydas.space/api"
-  NEXT_PUBLIC_SITE_URL = "https://nd.dovydas.space"
-  NEXT_PUBLIC_GOOGLE_CLIENT_ID = "1046454672027-cjd7mcu13077ss0tnp3hg31fn7e42km6.apps.googleusercontent.com"
+  # Next.js environment
+  NEXT_TELEMETRY_DISABLED = "1"
 
-# Redirect rules for SPA routing
-# This ensures all routes serve index.html for client-side routing
+# Environment variables (set these in Netlify UI for security)
+# NEXT_PUBLIC_API_URL = "https://your-backend.onrender.com"
+
+# Redirect rules for Next.js (SPA fallback)
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
   force = false
+  conditions = {Role = [""]}
+  
+# API proxy to backend (optional - if you want to proxy API calls through Netlify)
+[[redirects]]
+  from = "/api/*"
+  to = "https://your-backend.onrender.com/api/:splat"
+  status = 200
+  force = false
+  headers = {X-From = "Netlify"}
 
-# Security headers
+# Headers for security
 [[headers]]
   for = "/*"
   [headers.values]
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
+    X-XSS-Protection = "1; mode=block"
     Referrer-Policy = "strict-origin-when-cross-origin"
-    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
-
+    
 # Cache static assets
 [[headers]]
   for = "/_next/static/*"
@@ -47,8 +57,15 @@
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
-# Handle 404 errors
-[[redirects]]
-  from = "/404"
-  to = "/404.html"
-  status = 404
+# Functions (if using Netlify Functions for API routes)
+[functions]
+  directory = ".netlify/functions"
+  node_bundler = "esbuild"
+
+# Dev settings for Netlify Dev (local testing)
+[dev]
+  command = "npm run dev"
+  port = 3000
+  targetPort = 3000
+  publish = ".next"
+  autoLaunch = false

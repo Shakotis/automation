@@ -50,5 +50,7 @@ export const siteConfig = {
   links: {
     github: "https://github.com/yourusername/homework-scraper",
     docs: "/docs",
+    privacy: "/privacy",
+    terms: "/terms",
   },
 };

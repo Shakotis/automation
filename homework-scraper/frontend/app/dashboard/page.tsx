@@ -49,9 +49,11 @@ export default function DashboardPage() {
   const [filter, setFilter] = useState<FilterStatus>('all');
   const [error, setError] = useState<string | null>(null);
   const [showDeleted, setShowDeleted] = useState(false);
+  const [hasShownAuthError, setHasShownAuthError] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter, showDeleted]);
 
   const fetchDashboardData = async () => {
@@ -66,14 +68,17 @@ export default function DashboardPage() {
       
       // If unauthorized, show toast and redirect to login
       if (statsResponse.status === 401) {
-        addToast({
-          title: 'Authentication Required',
-          description: 'Please sign in with Google to view homework',
-          color: 'danger',
-        });
-        setTimeout(() => {
-          window.location.href = '/';
-        }, 2000);
+        if (!hasShownAuthError) {
+          setHasShownAuthError(true);
+          addToast({
+            title: 'Authentication Required',
+            description: 'Please sign in with Google to view homework',
+            color: 'danger',
+          });
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 2000);
+        }
         return;
       }
       
@@ -106,14 +111,17 @@ export default function DashboardPage() {
       });
       
       if (homeworkResponse.status === 401) {
-        addToast({
-          title: 'Authentication Required',
-          description: 'Please sign in with Google to view homework',
-          color: 'danger',
-        });
-        setTimeout(() => {
-          window.location.href = '/';
-        }, 2000);
+        if (!hasShownAuthError) {
+          setHasShownAuthError(true);
+          addToast({
+            title: 'Authentication Required',
+            description: 'Please sign in with Google to view homework',
+            color: 'danger',
+          });
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 2000);
+        }
         return;
       }
       
@@ -123,21 +131,27 @@ export default function DashboardPage() {
         const results = homeworkData.results || homeworkData;
         setHomework(Array.isArray(results) ? results : []);
       } else if (homeworkResponse.status === 404) {
-        addToast({
-          title: 'Backend Connection Failed',
-          description: 'Could not connect to backend server',
-          color: 'danger',
-        });
+        if (!hasShownAuthError) {
+          addToast({
+            title: 'Backend Connection Failed',
+            description: 'Could not connect to backend server',
+            color: 'danger',
+          });
+          setHasShownAuthError(true);
+        }
         setHomework([]);
       }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
-      // Show toast for connection errors
-      addToast({
-        title: 'Connection Error',
-        description: 'Failed to connect to backend server',
-        color: 'danger',
-      });
+      // Show toast for connection errors (only once)
+      if (!hasShownAuthError) {
+        addToast({
+          title: 'Connection Error',
+          description: 'Failed to connect to backend server',
+          color: 'danger',
+        });
+        setHasShownAuthError(true);
+      }
       setHomework([]);
     } finally {
       setLoading(false);
@@ -277,16 +291,16 @@ export default function DashboardPage() {
         ),
       });
 
-      try {
-        await scrapePromise;
-      } catch (error) {
+      // Don't await - let it run in background so UI is not blocked
+      scrapePromise.catch(error => {
         // Error already handled by toast via promise rejection
-        // Silently catch to prevent console error
-      }
+        console.error('Scrape error:', error);
+      });
+      
+      // Release the UI immediately
+      setScraping(false);
     } catch (error) {
       console.error('Error in scrape handler:', error);
-      // Toast already shown via promise
-    } finally {
       setScraping(false);
     }
   };

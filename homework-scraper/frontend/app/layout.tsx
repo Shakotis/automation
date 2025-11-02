@@ -49,6 +49,36 @@ export default function RootLayout({
               <main className="container mx-auto max-w-7xl pt-4 sm:pt-16 px-4 sm:px-6 flex-grow">
                 {children}
               </main>
+              <footer className="w-full flex items-center justify-center py-6 border-t border-default-200">
+                <div className="container max-w-7xl px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <p className="text-sm text-default-600">
+                    © {new Date().getFullYear()} Homework Scraper. All rights reserved.
+                  </p>
+                  <div className="flex gap-4 text-sm">
+                    <Link
+                      isExternal
+                      className="text-default-600 hover:text-primary"
+                      href={siteConfig.links.privacy}
+                    >
+                      Privacy Policy
+                    </Link>
+                    <Link
+                      isExternal
+                      className="text-default-600 hover:text-primary"
+                      href={siteConfig.links.terms}
+                    >
+                      Terms of Service
+                    </Link>
+                    <Link
+                      isExternal
+                      className="text-default-600 hover:text-primary"
+                      href={siteConfig.links.github}
+                    >
+                      GitHub
+                    </Link>
+                  </div>
+                </div>
+              </footer>
             </div>
           </AuthGuard>
         </Providers>
