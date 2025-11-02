@@ -8,8 +8,8 @@
   # Directory to publish (Next.js static export or standalone output)
   publish = "out"
   
-  # Base directory for build
-  base = "frontend"
+  # Base directory for build (relative to repo root)
+  base = "homework-scraper/frontend"
 
 [build.environment]
   # Node version (use same as development)
