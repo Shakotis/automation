@@ -934,6 +934,66 @@ export default function SettingsPage() {
           Reset
         </Button>
       </div>
+
+      {/* Privacy & Data Management */}
+      <Card className="mt-6 border-2 border-default-200">
+        <CardHeader className="p-4 bg-default-50">
+          <h2 className="text-lg sm:text-xl font-semibold">🔒 Privacy & Data Management</h2>
+        </CardHeader>
+        <CardBody className="p-4 pt-0">
+          <div className="space-y-4">
+            <div className="text-xs sm:text-sm text-default-600 space-y-2 pt-2">
+              <p>
+                <strong>How we protect your data:</strong>
+              </p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Educational platform credentials are encrypted using industry-standard encryption (Fernet)</li>
+                <li>All data transmission uses HTTPS/TLS encryption</li>
+                <li>Google OAuth tokens are stored securely and never exposed</li>
+                <li>We only access your Google Tasks when you explicitly sync homework</li>
+              </ul>
+            </div>
+
+            <Divider />
+
+            <div className="text-xs sm:text-sm text-default-600 space-y-2">
+              <p>
+                <strong>Your data rights:</strong>
+              </p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>You can revoke Google OAuth access anytime from your <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Google Account settings</a></li>
+                <li>You can delete your educational platform credentials anytime</li>
+                <li>Account deletion will permanently remove all your data within 30 days</li>
+              </ul>
+            </div>
+
+            <Divider />
+
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <Button
+                as="a"
+                href="/privacy"
+                target="_blank"
+                size="sm"
+                variant="bordered"
+                className="w-full sm:w-auto"
+              >
+                📄 Privacy Policy
+              </Button>
+              <Button
+                as="a"
+                href="/terms"
+                target="_blank"
+                size="sm"
+                variant="bordered"
+                className="w-full sm:w-auto"
+              >
+                📋 Terms of Service
+              </Button>
+            </div>
+          </div>
+        </CardBody>
+      </Card>
     </div>
   );
 }

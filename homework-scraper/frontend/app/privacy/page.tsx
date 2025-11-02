@@ -264,7 +264,7 @@ export default function PrivacyPolicyPage() {
           </p>
           <div className="pl-6">
             <p>
-              <strong>Email:</strong> sadyvod19@gmail.com
+              <strong>Email:</strong> dovydasjusevicius@gmail.com
             </p>
             <p>
               <strong>GitHub:</strong>{" "}

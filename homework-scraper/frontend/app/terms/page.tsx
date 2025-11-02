@@ -349,7 +349,7 @@ export default function TermsOfServicePage() {
           
           <h3 className="text-xl font-semibold mb-2 mt-4">12.1 Informal Resolution</h3>
           <p>
-            If you have any dispute with us, you agree to first contact us at sadyvod19@gmail.com and
+            If you have any dispute with us, you agree to first contact us at dovydasjusevicius@gmail.com and
             attempt to resolve the dispute informally. We will work with you in good faith to resolve
             any disputes.
           </p>
@@ -457,7 +457,7 @@ export default function TermsOfServicePage() {
           </p>
           <div className="pl-6">
             <p>
-              <strong>Email:</strong> sadyvod19@gmail.com
+              <strong>Email:</strong> dovydasjusevicius@gmail.com
             </p>
             <p>
               <strong>GitHub:</strong>{" "}

@@ -150,8 +150,26 @@ export default function Home() {
 
       {/* CTA Buttons - Only show for non-authenticated users */}
       {!loading && !user && (
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex flex-col items-center gap-3">
           <GoogleSignInButton />
+          <p className="text-sm text-default-500 text-center max-w-md mt-2">
+            By signing in, you agree to our{" "}
+            <Link
+              href="/terms"
+              className="text-primary hover:underline"
+              size="sm"
+            >
+              Terms of Service
+            </Link>
+            {" "}and{" "}
+            <Link
+              href="/privacy"
+              className="text-primary hover:underline"
+              size="sm"
+            >
+              Privacy Policy
+            </Link>
+          </p>
         </div>
       )}
 
@@ -374,6 +392,51 @@ export default function Home() {
           </span>
         </Chip>
       </div>
+
+      {/* Privacy & Data Usage Section */}
+      <Card className="w-full max-w-4xl mt-8 bg-primary-50 dark:bg-primary-950/20 border-2 border-primary-200 dark:border-primary-800">
+        <CardBody className="py-6 px-6">
+          <div className="flex flex-col md:flex-row items-start gap-4">
+            <div className="text-4xl">🔒</div>
+            <div className="flex-1">
+              <h3 className="text-lg font-bold mb-2 text-primary-900 dark:text-primary-100">
+                Your Privacy & Data Security
+              </h3>
+              <div className="text-sm text-primary-800 dark:text-primary-200 space-y-2">
+                <p>
+                  <strong>How we use your Google data:</strong> We only use your Google account for 
+                  authentication and to sync homework to your Google Tasks (with your permission).
+                </p>
+                <p>
+                  <strong>Educational platform credentials:</strong> Your Manodienynas and Eduka 
+                  credentials are encrypted and stored securely. We only use them to fetch your 
+                  homework assignments.
+                </p>
+                <p>
+                  <strong>Data retention:</strong> You can delete your account and all associated 
+                  data at any time from the Settings page.
+                </p>
+                <div className="flex flex-wrap gap-3 mt-3">
+                  <Link
+                    href="/privacy"
+                    className="text-primary hover:underline font-semibold"
+                    size="sm"
+                  >
+                    📄 Read Full Privacy Policy →
+                  </Link>
+                  <Link
+                    href="/terms"
+                    className="text-primary hover:underline font-semibold"
+                    size="sm"
+                  >
+                    📋 Terms of Service →
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardBody>
+      </Card>
     </section>
   );
 }
