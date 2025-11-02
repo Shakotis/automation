@@ -184,9 +184,9 @@ export const Navbar = () => {
         ) : (
           <NavbarItem className="hidden md:flex">
             <Button
-              className="text-sm font-normal text-white bg-primary"
+              className="text-sm font-normal text-black dark:text-white bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600"
               startContent={<GoogleIcon size={16} />}
-              variant="solid"
+              variant="bordered"
               onPress={handleGoogleSignIn}
             >
               Sign In
